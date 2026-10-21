@@ -22,7 +22,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  <div class="topright">
   <label class="filebtn" for="csvFile">⬆ Import MT5 CSV</label><input id="csvFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
   <label for="timeframe">Timeframe</label><select id="timeframe"><option value="1">1 minute</option><option value="3" selected>3 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="D">1 day</option></select>
-  <button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="gotoOpen" title="Jump to a date or custom range">Go to ▦</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
+  <button id="highLow" title="Show or hide swing highs and lows">Highs &amp; Lows</button><button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="gotoOpen" title="Jump to a date or custom range">Go to ▦</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
  </div>
 </header>
 <main class="main">
@@ -34,7 +34,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
 <div id="pineModal" style="display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);align-items:center;justify-content:center;padding:18px">
  <section style="width:min(820px,100%);max-height:90vh;overflow:auto;background:#131722;border:1px solid #3a4050;border-radius:10px;padding:16px;box-shadow:0 16px 50px #0009">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><b style="font-size:16px">Pine Script editor</b><span style="margin-left:auto;color:#9aa4b2;font-size:12px">Supported plots: EMA / SMA</span><button id="closePine">Close ✕</button></div>
-  <p style="color:#9aa4b2;line-height:1.5;margin-top:0">Paste a Pine-style indicator. This editor currently supports plot lines in these formats: <code>plot(ta.ema(close, 20))</code> and <code>plot(ta.sma(close, 50))</code>. It does not run the full TradingView Pine Script language, strategies, custom functions, or imports.</p>
+  <p style="color:#9aa4b2;line-height:1.5;margin-top:0">This editor is for simple EMA/SMA plot examples only. For swing highs and lows, close this editor and use the Highs &amp; Lows button in the toolbar. Supported plot lines are: <code>plot(ta.ema(close, 20))</code> and <code>plot(ta.sma(close, 50))</code>. It does not run the full TradingView Pine Script language, strategies, custom functions, or imports.</p>
   <textarea id="pineCode" spellcheck="false" style="width:100%;height:250px;resize:vertical;background:#0b0e14;color:#d1d4dc;border:1px solid #3a4050;border-radius:6px;padding:12px;font:13px Consolas,monospace" placeholder="//@version=5&#10;indicator(&quot;My indicator&quot;, overlay=true)&#10;plot(ta.ema(close, 20))&#10;plot(ta.sma(close, 50))"></textarea>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap"><button id="resetPine">Load example</button><button id="applyPine">Apply supported plots</button></div>
   <div id="pineMessage" style="color:#9aa4b2;margin-top:10px;font-size:12px;line-height:1.5">Import MT5 history first, then apply your indicator.</div>
@@ -77,6 +77,38 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   crosshair:{mode:LightweightCharts.CrosshairMode.Normal}
  });
  const candles=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#2962ff',downColor:'#ef5350',borderVisible:false,wickUpColor:'#2962ff',wickDownColor:'#ef5350'});
+ let highLowMarkersApi=null,highLowVisible=false;
+ function findSwingMarkers(bars,strength=3){
+  const markers=[];
+  for(let i=strength;i<bars.length-strength;i++){
+   const b=bars[i];let high=true,low=true;
+   for(let j=i-strength;j<=i+strength;j++){
+    if(j===i)continue;
+    if(bars[j].high>=b.high)high=false;
+    if(bars[j].low<=b.low)low=false;
+    if(!high&&!low)break;
+   }
+   if(high)markers.push({time:b.time,position:'aboveBar',color:'#ef5350',shape:'arrowDown',text:'H'});
+   if(low)markers.push({time:b.time,position:'belowBar',color:'#26a69a',shape:'arrowUp',text:'L'});
+  }
+  return markers;
+ }
+ function updateHighLowMarkers(){
+  if(!highLowVisible||!currentBars.length){
+   if(highLowMarkersApi){highLowMarkersApi.setMarkers([])}
+   return;
+  }
+  if(!highLowMarkersApi)highLowMarkersApi=LightweightCharts.createSeriesMarkers(candles,[]);
+  highLowMarkersApi.setMarkers(findSwingMarkers(currentBars,3));
+ }
+ $('highLow').addEventListener('click',()=>{
+  highLowVisible=!highLowVisible;
+  $('highLow').textContent=highLowVisible?'Hide Highs & Lows':'Highs & Lows';
+  $('highLow').style.borderColor=highLowVisible?'#26a69a':'';
+  updateHighLowMarkers();
+  if(highLowVisible)$('ohlc').textContent='Swing highs (H) and lows (L) shown · 3 candles on each side';
+ });
+
  let sourceBars=[],loadedFileName='',currentBars=[],isLight=false,indicatorSeries={};
  const fmtDate=t=>new Date(t*1000).toLocaleString();
  const DB_NAME='FreeTradeChartsLocal',DB_VERSION=1,CHUNK_SIZE=20000;
@@ -225,7 +257,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  function render(){
   if(!sourceBars.length)return;
   const tf=$('timeframe').value;const bars=aggregate(sourceBars,tf);
-  currentBars=bars;candles.setData(bars);chart.timeScale().fitContent();$('empty').style.display='none';$('fit').disabled=false;updateIndicators();
+  currentBars=bars;candles.setData(bars);chart.timeScale().fitContent();$('empty').style.display='none';$('fit').disabled=false;updateIndicators();updateHighLowMarkers();
   $('range').textContent=fmtDate(bars[0].time)+' — '+fmtDate(bars[bars.length-1].time);
   $('count').textContent=bars.length.toLocaleString()+' candles displayed · '+sourceBars.length.toLocaleString()+' source rows · '+tf+' minute'+(tf==='1'?'':'s');
   $('symbol').textContent=loadedFileName.toLowerCase().includes('xau')?'XAUUSDx':'MT5 OHLC';
