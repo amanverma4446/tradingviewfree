@@ -22,7 +22,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  <div class="topright">
   <label class="filebtn" for="csvFile">⬆ Import MT5 CSV</label><input id="csvFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
   <label for="timeframe">Timeframe</label><select id="timeframe"><option value="1">1 minute</option><option value="3" selected>3 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="D">1 day</option></select>
-  <button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
+  <button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
  </div>
 </header>
 <main class="main">
@@ -45,6 +45,67 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  const candles=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#2962ff',downColor:'#ef5350',borderVisible:false,wickUpColor:'#2962ff',wickDownColor:'#ef5350'});
  let sourceBars=[],loadedFileName='',currentBars=[],isLight=false,indicatorSeries={};
  const fmtDate=t=>new Date(t*1000).toLocaleString();
+ const DB_NAME='FreeTradeChartsLocal',DB_VERSION=1,CHUNK_SIZE=20000;
+ function openHistoryDB(){
+  return new Promise((resolve,reject)=>{
+   if(!('indexedDB' in window)){reject(new Error('This browser does not support local history storage.'));return}
+   const request=indexedDB.open(DB_NAME,DB_VERSION);
+   request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains('chunks'))db.createObjectStore('chunks',{keyPath:'id'});if(!db.objectStoreNames.contains('meta'))db.createObjectStore('meta',{keyPath:'id'})};
+   request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error||new Error('Could not open local history storage.'));
+  });
+ }
+ function idbRequest(req){return new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error||new Error('Local storage request failed.'))})}
+ async function saveHistoryLocally(bars,fileName){
+  const db=await openHistoryDB();
+  try{
+   await new Promise((resolve,reject)=>{
+    const tx=db.transaction(['chunks','meta'],'readwrite'),chunks=tx.objectStore('chunks'),meta=tx.objectStore('meta');
+    chunks.clear();meta.clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Could not clear old saved history.'));
+   });
+   const total=Math.ceil(bars.length/CHUNK_SIZE);
+   for(let i=0;i<total;i++){
+    const slice=bars.slice(i*CHUNK_SIZE,(i+1)*CHUNK_SIZE);
+    await new Promise((resolve,reject)=>{
+     const tx=db.transaction('chunks','readwrite');
+     tx.objectStore('chunks').put({id:'bars_'+i,bars:slice});
+     tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Could not save history chunk.'));
+    });
+    $('savedStatus').textContent='Saving '+Math.round((i+1)/total*100)+'%';
+    await new Promise(resolve=>setTimeout(resolve,0));
+   }
+   await new Promise((resolve,reject)=>{
+    const tx=db.transaction('meta','readwrite');
+    tx.objectStore('meta').put({id:'current',fileName,count:bars.length,chunks:total,firstTime:bars[0].time,lastTime:bars[bars.length-1].time,savedAt:Date.now()});
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Could not finish saving history.'));
+   });
+   $('savedStatus').textContent='Saved on this device';
+  }finally{db.close()}
+ }
+ async function restoreHistoryLocally(){
+  let db;
+  try{
+   db=await openHistoryDB();
+   const meta=await new Promise((resolve,reject)=>{const tx=db.transaction('meta','readonly'),req=tx.objectStore('meta').get('current');req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)});
+   if(!meta||!meta.chunks)return false;
+   $('range').textContent='Restoring saved history…';$('count').textContent='Loading saved candles…';
+   const all=[];
+   for(let i=0;i<meta.chunks;i++){
+    const chunk=await new Promise((resolve,reject)=>{const tx=db.transaction('chunks','readonly'),req=tx.objectStore('chunks').get('bars_'+i);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error)});
+    if(chunk&&Array.isArray(chunk.bars))all.push(...chunk.bars);
+    $('count').textContent='Restoring '+all.length.toLocaleString()+' / '+meta.count.toLocaleString()+' candles…';
+    await new Promise(resolve=>setTimeout(resolve,0));
+   }
+   if(!all.length)return false;
+   sourceBars=all;loadedFileName=meta.fileName||'Saved MT5 history';render();
+   $('ohlc').textContent='Restored from this browser: '+loadedFileName;
+   $('savedStatus').textContent='Saved on this device';
+   return true;
+  }catch(err){
+   $('savedStatus').textContent='Local save unavailable';
+   $('count').textContent='Could not restore saved history: '+err.message;
+   return false;
+  }finally{if(db)db.close()}
+ }
  function parseDate(dateStr,timeStr){
   let s=String(dateStr||'').trim(), t=String(timeStr||'').trim();
   if(!s)return NaN;
@@ -138,7 +199,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  $('csvFile').addEventListener('change',async e=>{
   const file=e.target.files&&e.target.files[0];if(!file)return;
   $('range').textContent='Reading file…';$('count').textContent='Loading history…';
-  try{sourceBars=await parseCsv(file);loadedFileName=file.name;render();$('ohlc').textContent='Imported locally: '+file.name;$('range').textContent=fmtDate(sourceBars[0].time)+' — '+fmtDate(sourceBars[sourceBars.length-1].time);}
+  try{sourceBars=await parseCsv(file);loadedFileName=file.name;render();$('ohlc').textContent='Imported locally: '+file.name;$('range').textContent=fmtDate(sourceBars[0].time)+' — '+fmtDate(sourceBars[sourceBars.length-1].time);$('savedStatus').textContent='Saving history…';await saveHistoryLocally(sourceBars,loadedFileName);}
   catch(err){$('range').textContent='Import failed';$('count').textContent=err.message;alert(err.message)}
   e.target.value='';
  });
@@ -215,6 +276,13 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   $('pineMessage').textContent='Applied '+specs.length+' supported moving-average plot(s). This is a limited subset, not the full Pine Script runtime.';
  });
 
+ $('clearSaved').addEventListener('click',async()=>{
+  if(!confirm('Delete the saved MT5 history from this browser? This will not delete your original CSV file.'))return;
+  let db;
+  try{db=await openHistoryDB();await new Promise((resolve,reject)=>{const tx=db.transaction(['chunks','meta'],'readwrite');tx.objectStore('chunks').clear();tx.objectStore('meta').clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});$('savedStatus').textContent='Saved data cleared';}
+  catch(err){alert('Could not clear saved history: '+err.message)}finally{if(db)db.close()}
+ });
+ restoreHistoryLocally();
  $('timeframe').addEventListener('change',render);
  $('fit').addEventListener('click',()=>chart.timeScale().fitContent());
  $('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.querySelector('.main').requestFullscreen();else await document.exitFullscreen()}catch(e){}});
