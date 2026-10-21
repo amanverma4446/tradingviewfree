@@ -287,11 +287,35 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  $('fit').addEventListener('click',()=>chart.timeScale().fitContent());
  $('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.querySelector('.main').requestFullscreen();else await document.exitFullscreen()}catch(e){}});
 
- let activeTool='cursor',pendingPoint=null,drawingSeries=[],horizontalLines=[];
+ let activeTool='cursor',pendingPoint=null,drawings=[],dragState=null;
+ const drawLayer=document.createElementNS('http://www.w3.org/2000/svg','svg');
+ drawLayer.setAttribute('id','drawingLayer');
+ drawLayer.style.cssText='position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none;z-index:4';
+ $('chart').appendChild(drawLayer);
+ const svgEl=(name,attrs)=>{const el=document.createElementNS('http://www.w3.org/2000/svg',name);Object.entries(attrs).forEach(([k,v])=>el.setAttribute(k,String(v)));return el};
+ function drawXY(point){return {x:chart.timeScale().timeToCoordinate(point.time),y:candles.priceToCoordinate(point.value)}}
+ function renderDrawings(){
+  drawLayer.replaceChildren();
+  const w=$('chart').clientWidth,h=$('chart').clientHeight;
+  drawLayer.setAttribute('viewBox','0 0 '+w+' '+h);
+  drawings.forEach((d,index)=>{
+   if(d.type==='horizontal'){
+    const y=candles.priceToCoordinate(d.price);if(y===null)return;
+    const line=svgEl('line',{x1:0,y1:y,x2:w-65,y2:y,stroke:d.color,'stroke-width':2,'pointer-events':'stroke','data-drag':index});
+    line.style.pointerEvents='stroke';line.style.cursor='ns-resize';drawLayer.appendChild(line);
+    const label=svgEl('text',{x:w-70,y:y-5,fill:d.color,'font-size':11,'text-anchor':'end','pointer-events':'none'});label.textContent=d.price.toFixed(2);drawLayer.appendChild(label);
+   }else{
+    const a=drawXY(d.points[0]),b=drawXY(d.points[1]);if(a.x===null||b.x===null||a.y===null||b.y===null)return;
+    const line=svgEl('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:d.color,'stroke-width':2,'pointer-events':'stroke','data-drag':index});
+    line.style.pointerEvents='stroke';line.style.cursor='move';drawLayer.appendChild(line);
+    [a,b].forEach((p,handle)=>{const circle=svgEl('circle',{cx:p.x,cy:p.y,r:5,fill:d.color,stroke:'#fff','stroke-width':1,'data-drag':index,'data-handle':handle});circle.style.pointerEvents='all';circle.style.cursor='move';drawLayer.appendChild(circle)});
+   }
+  });
+ }
  document.querySelectorAll('[data-tool]').forEach(btn=>btn.addEventListener('click',()=>{
   activeTool=btn.dataset.tool;pendingPoint=null;
   document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b===btn));
-  $('ohlc').textContent=activeTool==='cursor'?'Cursor mode':activeTool==='trend'?'Trend line: click two points on the chart':'Horizontal line: click a price level';
+  $('ohlc').textContent=activeTool==='cursor'?'Cursor mode':activeTool==='trend'?'Trend line: click two points on the chart':'Horizontal line: click a price level. Drag existing lines to adjust.';
  }));
  chart.subscribeClick(param=>{
   if(activeTool==='cursor'||!param.point||!param.time)return;
@@ -299,20 +323,37 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   if(price===null||!Number.isFinite(price))return;
   const point={time:param.time,value:price};
   if(activeTool==='horizontal'){
-   const line=candles.createPriceLine({price:price,color:'#f7c948',lineWidth:2,lineStyle:LightweightCharts.LineStyle.Solid,axisLabelVisible:true,title:'H-Line'});
-   horizontalLines.push(line);return;
+   drawings.push({type:'horizontal',price,color:'#f7c948'});
+   renderDrawings();return;
   }
   if(!pendingPoint){pendingPoint=point;$('ohlc').textContent='Trend line: choose the second point';return}
   let points=[pendingPoint,point].sort((a,b)=>a.time-b.time);
   if(points[0].time===points[1].time){pendingPoint=null;return}
-  const series=chart.addSeries(LightweightCharts.LineSeries,{color:'#f7c948',lineWidth:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false,title:'Trend line'});
-  series.setData(points);drawingSeries.push(series);pendingPoint=null;$('ohlc').textContent='Trend line added';
+  drawings.push({type:'trend',points,color:'#f7c948'});pendingPoint=null;renderDrawings();$('ohlc').textContent='Trend line added — drag the line or its end points to adjust';
  });
- $('clearDrawings').addEventListener('click',()=>{
-  drawingSeries.forEach(s=>chart.removeSeries(s));drawingSeries=[];
-  horizontalLines.forEach(l=>{try{candles.removePriceLine(l)}catch(e){}});horizontalLines=[];pendingPoint=null;
+ drawLayer.addEventListener('pointerdown',e=>{
+  const target=e.target.closest('[data-drag]');if(!target)return;
+  const index=Number(target.getAttribute('data-drag')),handle=target.hasAttribute('data-handle')?Number(target.getAttribute('data-handle')):null;
+  if(!drawings[index])return;
+  dragState={index,handle,pointerId:e.pointerId};drawLayer.setPointerCapture(e.pointerId);e.preventDefault();e.stopPropagation();
  });
-
+ drawLayer.addEventListener('pointermove',e=>{
+  if(!dragState)return;
+  const rect=$('chart').getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,d=drawings[dragState.index];if(!d)return;
+  const price=candles.coordinateToPrice(y);if(price===null||!Number.isFinite(price))return;
+  if(d.type==='horizontal')d.price=price;
+  else{
+   const time=chart.timeScale().coordinateToTime(x);if(time===null||time===undefined)return;
+   d.points[dragState.handle===null?1:dragState.handle]={time,value:price};
+   d.points.sort((a,b)=>a.time-b.time);
+  }
+  renderDrawings();
+ });
+ const stopDragging=()=>{dragState=null};
+ drawLayer.addEventListener('pointerup',stopDragging);drawLayer.addEventListener('pointercancel',stopDragging);
+ $('clearDrawings').addEventListener('click',()=>{drawings=[];pendingPoint=null;renderDrawings()});
+ chart.timeScale().subscribeVisibleTimeRangeChange(renderDrawings);
+ window.addEventListener('resize',renderDrawings);
  chart.subscribeCrosshairMove(param=>{
   if(!param||!param.time)return;const d=param.seriesData.get(candles);if(d)$('ohlc').textContent='O '+d.open+'   H '+d.high+'   L '+d.low+'   C '+d.close;
  });
