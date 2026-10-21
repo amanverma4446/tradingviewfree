@@ -22,7 +22,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  <div class="topright">
   <label class="filebtn" for="csvFile">⬆ Import MT5 CSV</label><input id="csvFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
   <label for="timeframe">Timeframe</label><select id="timeframe"><option value="1">1 minute</option><option value="3" selected>3 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="D">1 day</option></select>
-  <button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
+  <button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="gotoOpen" title="Jump to a date or custom range">Go to ▦</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
  </div>
 </header>
 <main class="main">
@@ -38,6 +38,29 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   <textarea id="pineCode" spellcheck="false" style="width:100%;height:250px;resize:vertical;background:#0b0e14;color:#d1d4dc;border:1px solid #3a4050;border-radius:6px;padding:12px;font:13px Consolas,monospace" placeholder="//@version=5&#10;indicator(&quot;My indicator&quot;, overlay=true)&#10;plot(ta.ema(close, 20))&#10;plot(ta.sma(close, 50))"></textarea>
   <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap"><button id="resetPine">Load example</button><button id="applyPine">Apply supported plots</button></div>
   <div id="pineMessage" style="color:#9aa4b2;margin-top:10px;font-size:12px;line-height:1.5">Import MT5 history first, then apply your indicator.</div>
+ </section>
+</div>
+
+
+<div id="gotoModal" style="display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.38);align-items:center;justify-content:center;padding:14px;color:#202124">
+ <section style="width:min(340px,100%);background:#fff;border-radius:9px;box-shadow:0 8px 28px #0003;overflow:hidden;font:14px Arial,sans-serif;color:#202124">
+  <div style="display:flex;align-items:center;padding:20px 20px 12px"><b style="font-size:18px">Go to</b><button id="gotoClose" aria-label="Close" style="margin-left:auto;background:#fff;border:0;color:#333;font-size:22px;padding:0 3px">×</button></div>
+  <div style="display:flex;gap:24px;padding:0 20px;border-bottom:1px solid #eee"><button id="gotoDateTab" style="background:#fff;color:#222;border:0;border-bottom:3px solid #333;border-radius:0;padding:10px 0;font-weight:bold">Date</button><button id="gotoRangeTab" style="background:#fff;color:#222;border:0;border-bottom:3px solid transparent;border-radius:0;padding:10px 0;font-weight:bold">Custom range</button></div>
+  <div id="gotoDatePanel" style="padding:14px 20px 18px">
+   <div style="display:flex;gap:10px;align-items:center">
+    <input id="gotoDate" type="date" style="width:150px;min-width:0;padding:8px 5px;border:1px solid #aaa;border-radius:6px;color:#222;background:#fff">
+    <input id="gotoTime" type="time" value="00:00" style="width:100px;min-width:0;padding:8px 5px;border:1px solid #aaa;border-radius:6px;color:#222;background:#fff">
+   </div>
+   <div style="display:flex;align-items:center;justify-content:space-between;margin:16px 0 12px"><button id="gotoPrev" style="background:#fff;color:#333;border:0;font-size:20px;padding:2px 8px">‹</button><span id="gotoMonth" style="font-size:14px"></span><button id="gotoNext" style="background:#fff;color:#333;border:0;font-size:20px;padding:2px 8px">›</button></div>
+   <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center;color:#777;font-size:12px;margin-bottom:6px"><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span><span>Su</span></div>
+   <div id="gotoDays" style="display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center"></div>
+  </div>
+  <div id="gotoRangePanel" style="display:none;padding:18px 20px;gap:12px;flex-direction:column">
+   <label style="display:flex;flex-direction:column;gap:6px">Start date<input id="gotoFrom" type="date" style="padding:8px;border:1px solid #aaa;border-radius:6px;color:#222;background:#fff"></label>
+   <label style="display:flex;flex-direction:column;gap:6px">End date<input id="gotoTo" type="date" style="padding:8px;border:1px solid #aaa;border-radius:6px;color:#222;background:#fff"></label>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:10px;padding:14px 20px;border-top:1px solid #eee"><button id="gotoCancel" style="background:#fff;color:#222;border:1px solid #bbb;border-radius:8px">Cancel</button><button id="gotoApply" style="background:#333;color:#fff;border:1px solid #333;border-radius:8px;padding:8px 16px">Go to</button></div>
+  <div id="gotoMessage" style="padding:0 20px 12px;color:#777;font-size:12px"></div>
  </section>
 </div>
 
@@ -294,6 +317,77 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   catch(err){alert('Could not clear saved history: '+err.message)}finally{if(db)db.close()}
  });
  restoreHistoryLocally();
+
+ // TradingView-style date jump and custom range calendar.
+ const pad2=n=>String(n).padStart(2,'0');
+ const isoDate=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+ let gotoMonthDate=new Date();gotoMonthDate.setDate(1);
+ let gotoMode='date';
+ function gotoSetTab(mode){
+  gotoMode=mode;
+  $('gotoDatePanel').style.display=mode==='date'?'block':'none';
+  $('gotoRangePanel').style.display=mode==='range'?'flex':'none';
+  $('gotoDateTab').style.borderBottomColor=mode==='date'?'#333':'transparent';
+  $('gotoRangeTab').style.borderBottomColor=mode==='range'?'#333':'transparent';
+ }
+ function gotoRenderCalendar(){
+  const y=gotoMonthDate.getFullYear(),m=gotoMonthDate.getMonth();
+  $('gotoMonth').textContent=gotoMonthDate.toLocaleDateString(undefined,{month:'long',year:'numeric'});
+  const first=new Date(y,m,1),offset=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate();
+  const selected=$('gotoDate').value,now=isoDate(new Date());const frag=document.createDocumentFragment();
+  for(let i=0;i<offset;i++){const blank=document.createElement('span');blank.style.height='34px';frag.appendChild(blank)}
+  for(let day=1;day<=days;day++){
+   const date=new Date(y,m,day),key=isoDate(date),btn=document.createElement('button');
+   btn.type='button';btn.textContent=String(day);
+   btn.style.cssText='height:34px;padding:0;border:1px solid transparent;border-radius:50%;background:#fff;color:#222;font-size:13px';
+   if(key===selected)btn.style.cssText+=';background:#333;color:#fff;font-weight:bold';
+   else if(key>now)btn.style.color='#aaa';
+   btn.addEventListener('click',()=>{$('gotoDate').value=key;gotoMonthDate=new Date(y,m,1);gotoRenderCalendar()});
+   frag.appendChild(btn);
+  }
+  $('gotoDays').replaceChildren(frag);
+ }
+ function gotoOpen(){
+  if(!currentBars.length){$('gotoMessage').textContent='Import MT5 history before jumping to a date.'}
+  else $('gotoMessage').textContent='Loaded data: '+new Date(currentBars[0].time*1000).toLocaleDateString()+' — '+new Date(currentBars[currentBars.length-1].time*1000).toLocaleDateString();
+  const now=new Date(),defaultDate=currentBars.length?new Date(currentBars[currentBars.length-1].time*1000):now;
+  $('gotoDate').value=isoDate(defaultDate);$('gotoTime').value=pad2(defaultDate.getHours())+':'+pad2(defaultDate.getMinutes());
+  $('gotoFrom').value=isoDate(currentBars.length?new Date(currentBars[0].time*1000):now);
+  $('gotoTo').value=isoDate(defaultDate);gotoMonthDate=new Date(defaultDate.getFullYear(),defaultDate.getMonth(),1);
+  gotoSetTab('date');gotoRenderCalendar();$('gotoModal').style.display='flex';
+ }
+ $('gotoOpen').addEventListener('click',gotoOpen);
+ $('gotoClose').addEventListener('click',()=>$('gotoModal').style.display='none');
+ $('gotoCancel').addEventListener('click',()=>$('gotoModal').style.display='none');
+ $('gotoModal').addEventListener('click',e=>{if(e.target===$('gotoModal'))$('gotoModal').style.display='none'});
+ $('gotoDateTab').addEventListener('click',()=>gotoSetTab('date'));
+ $('gotoRangeTab').addEventListener('click',()=>gotoSetTab('range'));
+ $('gotoPrev').addEventListener('click',()=>{gotoMonthDate=new Date(gotoMonthDate.getFullYear(),gotoMonthDate.getMonth()-1,1);gotoRenderCalendar()});
+ $('gotoNext').addEventListener('click',()=>{gotoMonthDate=new Date(gotoMonthDate.getFullYear(),gotoMonthDate.getMonth()+1,1);gotoRenderCalendar()});
+ $('gotoDate').addEventListener('change',()=>{if($('gotoDate').value){const d=new Date($('gotoDate').value+'T00:00:00');gotoMonthDate=new Date(d.getFullYear(),d.getMonth(),1);gotoRenderCalendar()}});
+ $('gotoApply').addEventListener('click',()=>{
+  if(!currentBars.length){$('gotoMessage').textContent='Import history first.';return}
+  let fromTime,toTime;
+  if(gotoMode==='date'){
+   if(!$('gotoDate').value){$('gotoMessage').textContent='Choose a date.';return}
+   const parts=$('gotoDate').value.split('-').map(Number),tp=($('gotoTime').value||'00:00').split(':').map(Number);
+   const target=Math.floor(new Date(parts[0],parts[1]-1,parts[2],tp[0]||0,tp[1]||0).getTime()/1000);
+   let index=0;for(let i=0;i<currentBars.length;i++){if(currentBars[i].time<=target)index=i;else break}
+   if(target<currentBars[0].time||target>currentBars[currentBars.length-1].time){$('gotoMessage').textContent='Selected date/time is outside your imported history.';return}
+   const visible=chart.timeScale().getVisibleLogicalRange();const span=visible?Math.max(40,visible.to-visible.from):180;
+   chart.timeScale().setVisibleLogicalRange({from:Math.max(0,index-span*.75),to:Math.min(currentBars.length-1,index+span*.25)});
+  }else{
+   if(!$('gotoFrom').value||!$('gotoTo').value||$('gotoFrom').value>$('gotoTo').value){$('gotoMessage').textContent='Choose a valid start and end date.';return}
+   const f=$('gotoFrom').value.split('-').map(Number),t=$('gotoTo').value.split('-').map(Number);
+   fromTime=Math.floor(new Date(f[0],f[1]-1,f[2]).getTime()/1000);
+   toTime=Math.floor(new Date(t[0],t[1]-1,t[2],23,59,59).getTime()/1000);
+   const first=currentBars.find(b=>b.time>=fromTime),last=[...currentBars].reverse().find(b=>b.time<=toTime);
+   if(!first||!last||first.time>last.time){$('gotoMessage').textContent='This range does not overlap your imported history.';return}
+   chart.timeScale().setVisibleRange({from:first.time,to:last.time});
+  }
+  $('gotoModal').style.display='none';
+ });
+
  $('timeframe').addEventListener('change',render);
  $('fit').addEventListener('click',()=>chart.timeScale().fitContent());
  $('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.querySelector('.main').requestFullscreen();else await document.exitFullscreen()}catch(e){}});
