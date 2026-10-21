@@ -1,112 +1,126 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>FreeTrade Charts</title>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FreeTrade Charts — MT5 History</title>
 <style>
-:root{color-scheme:dark;--bg:#0b0e14;--panel:#131722;--line:#2a2e39;--muted:#9aa4b2;--text:#d1d4dc;--accent:#2962ff}
-*{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:13px Arial,Helvetica,sans-serif}
-.app{height:100dvh;display:flex;flex-direction:column}
-.topbar{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:18px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line)}
-.brand{font-size:17px;font-weight:700;white-space:nowrap;color:#f0f3fa}.brand span{color:#26a69a}
-.pill{background:#1e222d;border:1px solid var(--line);border-radius:5px;padding:7px 10px;color:var(--text);white-space:nowrap}
-.status{color:#26a69a;font-size:12px;white-space:nowrap}
-.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
-.btn{border:1px solid var(--line);background:#1e222d;color:var(--text);border-radius:5px;padding:7px 10px;cursor:pointer}
-.btn:hover{border-color:#6a7485}
-.workspace{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:1px;background:var(--line)}
-.chart-area{min-width:0;min-height:0;background:var(--panel);display:flex;flex-direction:column}
-.chart-head{height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid var(--line);white-space:nowrap}
-.symbol{font-weight:700;font-size:14px;color:#f0f3fa}
-.subtle{color:var(--muted)}
-.widget{flex:1;min-height:0;position:relative}
-.widget iframe{width:100%;height:100%;border:0;display:block}
-.watchlist{background:var(--panel);display:flex;flex-direction:column;min-width:0}
-.watch-head{height:40px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--line);font-weight:700}
-.watch-note{padding:14px 12px;color:var(--muted);line-height:1.5}
-.watch-link{color:#8aa4ff;text-decoration:none}
-.footer{height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;color:#77808f;background:var(--panel);border-top:1px solid var(--line);font-size:11px}
-@media(max-width:800px){.workspace{grid-template-columns:minmax(0,1fr)}.watchlist{display:none}.topbar{gap:9px;padding:0 9px}.brand{font-size:15px}.status{display:none}.top-actions .optional{display:none}.chart-head{gap:7px;padding:0 8px}}
+:root{color-scheme:dark;--bg:#0b0e14;--panel:#131722;--line:#2a2e39;--text:#d1d4dc;--muted:#9aa4b2;--blue:#2962ff}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:13px Arial,Helvetica,sans-serif}
+.app{height:100dvh;display:flex;flex-direction:column}.top{height:54px;flex:0 0 54px;display:flex;align-items:center;gap:12px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-size:17px;font-weight:700;color:#f0f3fa;white-space:nowrap}.brand span{color:#26a69a}.tag{color:#26a69a;font-size:11px}
+button,select,.filebtn{font:inherit;color:var(--text);background:#1e222d;border:1px solid var(--line);border-radius:5px;padding:8px 10px;cursor:pointer}
+button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cursor:not-allowed}
+.toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.toolbar label{color:var(--muted);font-size:12px}
+.topright{margin-left:auto;display:flex;gap:8px;align-items:center}.status{font-size:12px;color:var(--muted);max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.main{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--panel)}.charthead{height:40px;flex:0 0 40px;display:flex;align-items:center;gap:14px;padding:0 14px;border-bottom:1px solid var(--line)}.symbol{font-weight:700;font-size:14px;color:#f0f3fa}.ohlc{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chart{flex:1;min-height:0;position:relative}.empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted);line-height:1.7;pointer-events:none}.empty strong{color:var(--text);font-size:16px}.empty-inner{max-width:540px}.chart canvas{display:block}
+.footer{height:30px;flex:0 0 30px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;color:#77808f;background:var(--panel);border-top:1px solid var(--line);font-size:11px}.footer span:last-child{text-align:right}
+@media(max-width:850px){.top{height:auto;min-height:54px;padding:8px;flex-wrap:wrap}.topright{margin-left:0;width:100%}.status{max-width:100%}.toolbar{gap:5px}.charthead{gap:8px;padding:0 8px}.footer{font-size:10px}}
 </style>
-</head>
-<body>
-<div class="app">
-<header class="topbar">
-  <div class="brand">FreeTrade <span>Charts</span></div>
-  <div class="pill">Chart workspace</div>
-  <div class="status">● Charting mode</div>
-  <div class="top-actions">
-    <button class="btn optional" id="symbolBtn" type="button">NZDUSD ▾</button>
-    <button class="btn" id="fullscreenBtn" type="button">⛶ Fullscreen</button>
-  </div>
+</head><body><div class="app">
+<header class="top">
+ <div class="brand">FreeTrade <span>Charts</span></div><div class="tag">MT5 broker history</div>
+ <div class="topright">
+  <label class="filebtn" for="csvFile">⬆ Import MT5 CSV</label><input id="csvFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
+  <label for="timeframe">Timeframe</label><select id="timeframe"><option value="1">1 minute</option><option value="3" selected>3 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="D">1 day</option></select>
+  <button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
+ </div>
 </header>
-<main class="workspace" id="workspace">
-  <section class="chart-area">
-    <div class="chart-head">
-      <span class="symbol" id="chartSymbol">NZDUSD</span>
-      <span class="subtle">Forex · FXCM</span>
-      <span class="subtle">TradingView chart</span>
-    </div>
-    <div class="widget" id="chartWidget">
-      <div class="tradingview-widget-container" style="height:100%;width:100%">
-        <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
-        <div class="tradingview-widget-copyright" style="height:32px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:11px;color:#787b86;background:#131722">
-          <a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank" style="color:#8aa4ff;text-decoration:none">Chart powered by TradingView</a>
-        </div>
-      </div>
-    </div>
-  </section>
-  <aside class="watchlist">
-    <div class="watch-head">Watchlist <span style="margin-left:auto;color:#7f8795">☰</span></div>
-    <div class="watch-note">Use the chart's symbol selector to switch markets. The embedded chart includes its own symbol search, timeframes, indicators, and drawing tools.</div>
-    <div class="watch-note" style="border-top:1px solid var(--line)">
-      <div style="font-weight:700;color:#d1d4dc;margin-bottom:8px">Quick symbols</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button class="btn symbol-pick" data-symbol="FX:EURUSD">EURUSD</button>
-        <button class="btn symbol-pick" data-symbol="FX:GBPUSD">GBPUSD</button>
-        <button class="btn symbol-pick" data-symbol="FX:USDJPY">USDJPY</button>
-        <button class="btn symbol-pick" data-symbol="OANDA:XAUUSD">XAUUSD</button>
-        <button class="btn symbol-pick" data-symbol="FX:NZDUSD">NZDUSD</button>
-        <button class="btn symbol-pick" data-symbol="NASDAQ:NDX">NAS100</button>
-      </div>
-    </div>
-    <div class="watch-note subtle" style="margin-top:auto;font-size:11px">Market data, symbol availability, and some features depend on TradingView and its data providers.</div>
-  </aside>
+<main class="main">
+ <div class="charthead"><span class="symbol" id="symbol">XAUUSDx</span><span class="ohlc" id="ohlc">Import your broker's historical candles to begin</span><span class="status" id="range" style="margin-left:auto">No data loaded</span></div>
+ <div class="chart" id="chart"><div class="empty" id="empty"><div class="empty-inner"><strong>Load one year of your XAUUSDx history</strong><br>Export historical bars from your MT5 broker, then click <b>Import MT5 CSV</b>.<br>For a 3-minute chart, import M3 bars or M1 bars (M1 data will be aggregated to M3).<br><br><span style="font-size:12px">Your file is processed locally in this browser and is not uploaded to a server.</span></div></div></div>
 </main>
-<footer class="footer"><span>FreeTrade Charts · Chart-only workspace</span><span>No backtesting or strategy results</span></footer>
+<footer class="footer"><span id="count">Chart-only workspace · no backtesting</span><span>Data source: your imported MT5 broker file</span></footer>
 </div>
+<script src="https://unpkg.com/lightweight-charts@5.0.8/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 (function(){
-  let currentSymbol='OANDA:XAUUSD';
-  function loadChart(symbol){
-    currentSymbol=symbol;
-    const pretty=symbol.split(':').pop();
-    document.getElementById('chartSymbol').textContent=pretty;
-    document.getElementById('symbolBtn').textContent=pretty+' ▾';
-    const container=document.getElementById('chartWidget');
-    container.innerHTML='<div class="tradingview-widget-container" style="height:100%;width:100%"><div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div><div class="tradingview-widget-copyright" style="height:32px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:11px;color:#787b86;background:#131722"><a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank" style="color:#8aa4ff;text-decoration:none">Chart powered by TradingView</a></div></div>';
-    const script=document.createElement('script');
-    script.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-    script.async=true;
-    script.type='text/javascript';
-    script.innerHTML=JSON.stringify({
-      autosize:true,symbol:symbol,interval:'3',range:'5D',timezone:'Asia/Kolkata',theme:'dark',style:'1',locale:'en',
-      backgroundColor:'#131722',gridColor:'rgba(42,46,57,0.65)',hide_top_toolbar:false,hide_legend:false,
-      allow_symbol_change:true,save_image:true,calendar:false,withdateranges:true,details:false,
-      hotlist:false,show_popup_button:true,studies:[],support_host:'https://www.tradingview.com'
-    });
-    container.querySelector('.tradingview-widget-container').appendChild(script);
-  }
-  document.querySelectorAll('.symbol-pick').forEach(function(btn){btn.addEventListener('click',function(){loadChart(btn.dataset.symbol)})});
-  document.getElementById('symbolBtn').addEventListener('click',function(){loadChart(currentSymbol==='OANDA:XAUUSD'?'FX:EURUSD':'OANDA:XAUUSD')});
-  document.getElementById('fullscreenBtn').addEventListener('click',async function(){
-    const target=document.getElementById('workspace');
-    try{if(!document.fullscreenElement){await target.requestFullscreen()}else{await document.exitFullscreen()}}catch(e){}
+ const $=id=>document.getElementById(id);
+ const chart=LightweightCharts.createChart($('chart'),{
+  autoSize:true,layout:{background:{type:'solid',color:'#131722'},textColor:'#d1d4dc',fontFamily:'Arial',fontSize:12},
+  grid:{vertLines:{color:'rgba(42,46,57,.65)'},horzLines:{color:'rgba(42,46,57,.65)'}},
+  rightPriceScale:{borderColor:'#2a2e39'},timeScale:{borderColor:'#2a2e39',timeVisible:true,secondsVisible:false,rightOffset:8},
+  crosshair:{mode:LightweightCharts.CrosshairMode.Normal}
+ });
+ const candles=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#2962ff',downColor:'#ef5350',borderVisible:false,wickUpColor:'#2962ff',wickDownColor:'#ef5350'});
+ let sourceBars=[],loadedFileName='';
+ const fmtDate=t=>new Date(t*1000).toLocaleString();
+ function parseDate(dateStr,timeStr){
+  let s=String(dateStr||'').trim(), t=String(timeStr||'').trim();
+  if(!s)return NaN;
+  if(!t){const m=s.match(/^(.*?)[ T]+(\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?)/);if(m){s=m[1];t=m[2]}}
+  let y,mo,d,match;
+  if((match=s.match(/^(\d{4})[.\/-](\d{1,2})[.\/-](\d{1,2})$/))){y=+match[1];mo=+match[2];d=+match[3]}
+  else if((match=s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/))){d=+match[1];mo=+match[2];y=+match[3]}
+  else {const v=Date.parse(s+(t?' '+t:''));return Number.isFinite(v)?Math.floor(v/1000):NaN}
+  const tm=t.match(/^(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?$/);
+  const hh=tm?+tm[1]:0,mm=tm?+tm[2]:0,ss=tm?+tm[3]||0:0;
+  const dt=new Date(y,mo-1,d,hh,mm,ss);
+  return Number.isFinite(dt.getTime())?Math.floor(dt.getTime()/1000):NaN;
+ }
+ function norm(s){return String(s||'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[ _-]/g,'')}
+ function parseCsv(text){
+  const first=(text.split(/\r?\n/).find(x=>x.trim())||'');
+  const delim=(first.match(/\t/g)||[]).length>(first.match(/,/g)||[]).length?'\t':((first.match(/;/g)||[]).length>(first.match(/,/g)||[]).length?';':',');
+  const rows=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim()).map(line=>{
+   const out=[];let cur='',q=false;
+   for(let i=0;i<line.length;i++){const c=line[i];if(c==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(c===delim&&!q){out.push(cur.trim());cur=''}else cur+=c}out.push(cur.trim());return out;
   });
-  loadChart(currentSymbol);
+  if(rows.length<2)throw Error('The file looks empty or has only one row.');
+  let headers=rows[0].map(norm);
+  const find=names=>headers.findIndex(h=>names.includes(h));
+  let di=find(['date','day','datetime','time']);
+  let ti=find(['time','hour']);
+  let oi=find(['open','o']),hi=find(['high','h'),li=find(['low','l']),ci=find(['close','c','last']);
+  let headerLooksValid=oi>=0&&hi>=0&&li>=0&&ci>=0&&di>=0;
+  let start=1;
+  if(!headerLooksValid){headers=['date','time','open','high','low','close','tickvolume','volume','spread'];di=0;ti=1;oi=2;hi=3;li=4;ci=5;start=0}
+  else if(headers[di]==='time'&&ti===di)ti=-1;
+  const num=v=>Number(String(v??'').replace(/\s/g,'').replace(',','.'));
+  const bars=[];
+  for(let i=start;i<rows.length;i++){
+   const row=rows[i];const time=parseDate(row[di],ti>=0?row[ti]:'');
+   const o=num(row[oi]),h=num(row[hi]),l=num(row[li]),c=num(row[ci]);
+   if(!Number.isFinite(time)||![o,h,l,c].every(Number.isFinite)||h<l)continue;
+   bars.push({time,open:o,high:h,low:l,close:c});
+  }
+  bars.sort((a,b)=>a.time-b.time);
+  const unique=[];for(const b of bars){if(unique.length&&unique[unique.length-1].time===b.time)unique[unique.length-1]=b;else unique.push(b)}
+  if(!unique.length)throw Error('No valid OHLC rows found. Expected MT5 columns Date, Time, Open, High, Low, Close. Try File → Save As from an MT5 chart.');
+  return unique;
+ }
+ function aggregate(bars,minutes){
+  if(minutes==='D'){
+   const groups=new Map();
+   for(const b of bars){const d=new Date(b.time*1000);const key=Math.floor(new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime()/1000);if(!groups.has(key))groups.set(key,{time:key,open:b.open,high:b.high,low:b.low,close:b.close});else{const g=groups.get(key);g.high=Math.max(g.high,b.high);g.low=Math.min(g.low,b.low);g.close=b.close}}
+   return [...groups.values()];
+  }
+  const seconds=Number(minutes)*60;
+  if(!Number.isFinite(seconds))return bars;
+  const groups=new Map();
+  for(const b of bars){const key=Math.floor(b.time/seconds)*seconds;if(!groups.has(key))groups.set(key,{time:key,open:b.open,high:b.high,low:b.low,close:b.close});else{const g=groups.get(key);g.high=Math.max(g.high,b.high);g.low=Math.min(g.low,b.low);g.close=b.close}}
+  return [...groups.values()];
+ }
+ function render(){
+  if(!sourceBars.length)return;
+  const tf=$('timeframe').value;const bars=aggregate(sourceBars,tf);
+  candles.setData(bars);chart.timeScale().fitContent();$('empty').style.display='none';$('fit').disabled=false;
+  $('range').textContent=fmtDate(bars[0].time)+' — '+fmtDate(bars[bars.length-1].time);
+  $('count').textContent=bars.length.toLocaleString()+' candles displayed · '+sourceBars.length.toLocaleString()+' source rows · '+tf+' minute'+(tf==='1'?'':'s');
+  $('symbol').textContent=loadedFileName.toLowerCase().includes('xau')?'XAUUSDx':'MT5 OHLC';
+ }
+ $('csvFile').addEventListener('change',async e=>{
+  const file=e.target.files&&e.target.files[0];if(!file)return;
+  $('range').textContent='Reading file…';$('count').textContent='Loading history…';
+  try{const text=await file.text();sourceBars=parseCsv(text);loadedFileName=file.name;render();$('ohlc').textContent='Imported locally: '+file.name;$('range').textContent=fmtDate(sourceBars[0].time)+' — '+fmtDate(sourceBars[sourceBars.length-1].time);}
+  catch(err){$('range').textContent='Import failed';$('count').textContent=err.message;alert(err.message)}
+  e.target.value='';
+ });
+ $('timeframe').addEventListener('change',render);
+ $('fit').addEventListener('click',()=>chart.timeScale().fitContent());
+ $('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.querySelector('.main').requestFullscreen();else await document.exitFullscreen()}catch(e){}});
+ chart.subscribeCrosshairMove(param=>{
+  if(!param||!param.time)return;const d=param.seriesData.get(candles);if(d)$('ohlc').textContent='O '+d.open+'   H '+d.high+'   L '+d.low+'   C '+d.close;
+ });
 })();
 </script>
-</body>
-</html>
+</body></html>
