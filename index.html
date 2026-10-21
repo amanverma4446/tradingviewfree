@@ -22,7 +22,8 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  <div class="topright">
   <label class="filebtn" for="csvFile">⬆ Import MT5 CSV</label><input id="csvFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
   <label for="timeframe">Timeframe</label><select id="timeframe"><option value="1">1 minute</option><option value="3" selected>3 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="D">1 day</option></select>
-  <button id="highLow" title="Show or hide swing highs and lows">Highs &amp; Lows</button><button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="gotoOpen" title="Jump to a date or custom range">Go to ▦</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
+  <label for="chartTimezone">Timezone</label><select id="chartTimezone" title="Timezone for chart labels and 5:30 candle levels"><option value="Asia/Kolkata" selected>IST (UTC+5:30)</option><option value="UTC">UTC</option><option value="Europe/London">London</option><option value="Europe/Helsinki">Helsinki</option><option value="Asia/Dubai">Dubai</option><option value="Asia/Singapore">Singapore</option><option value="America/New_York">New York</option><option value="local">Local</option></select>
+  <button id="highLow" title="Show or hide the 5:30 AM 3-minute candle high and low">5:30 High/Low</button><button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="gotoOpen" title="Jump to a date or custom range">Go to ▦</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
  </div>
 </header>
 <main class="main">
@@ -77,40 +78,51 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   crosshair:{mode:LightweightCharts.CrosshairMode.Normal}
  });
  const candles=chart.addSeries(LightweightCharts.CandlestickSeries,{upColor:'#2962ff',downColor:'#ef5350',borderVisible:false,wickUpColor:'#2962ff',wickDownColor:'#ef5350'});
- let highLowMarkersApi=null,highLowVisible=false;
- function findSwingMarkers(bars,strength=3){
-  const markers=[];
-  for(let i=strength;i<bars.length-strength;i++){
-   const b=bars[i];let high=true,low=true;
-   for(let j=i-strength;j<=i+strength;j++){
-    if(j===i)continue;
-    if(bars[j].high>=b.high)high=false;
-    if(bars[j].low<=b.low)low=false;
-    if(!high&&!low)break;
+ let highLowVisible=false,highLowLevels=[];
+ function getChartTimeZone(){return $('chartTimezone')?$('chartTimezone').value:'Asia/Kolkata'}
+ function zonedParts(epochSeconds){
+  const tz=getChartTimeZone(),opts={year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'};
+  if(tz!=='local')opts.timeZone=tz;
+  const parts=new Intl.DateTimeFormat('en-GB',opts).formatToParts(new Date(epochSeconds*1000));
+  const out={};parts.forEach(p=>{if(p.type!=='literal')out[p.type]=p.value});return out;
+ }
+ function build530Levels(){
+  const bars=aggregate(sourceBars,'3'),found=[];
+  for(let i=0;i<bars.length;i++){
+   const b=bars[i],p=zonedParts(b.time);
+   if(p.hour==='05'&&p.minute==='30'){
+    let end=bars.length?bars[bars.length-1].time:b.time;
+    for(let j=i+1;j<bars.length;j++){
+     const np=zonedParts(bars[j].time);
+     if(np.year!==p.year||np.month!==p.month||np.day!==p.day){end=bars[j].time;break}
+    }
+    found.push({time:b.time,end,high:b.high,low:b.low,date:p.year+'-'+p.month+'-'+p.day});
    }
-   if(high)markers.push({time:b.time,position:'aboveBar',color:'#ef5350',shape:'arrowDown',text:'H'});
-   if(low)markers.push({time:b.time,position:'belowBar',color:'#26a69a',shape:'arrowUp',text:'L'});
   }
-  return markers;
+  highLowLevels=found;
  }
- function updateHighLowMarkers(){
-  if(!highLowVisible||!currentBars.length){
-   if(highLowMarkersApi){highLowMarkersApi.setMarkers([])}
-   return;
-  }
-  if(!highLowMarkersApi)highLowMarkersApi=LightweightCharts.createSeriesMarkers(candles,[]);
-  highLowMarkersApi.setMarkers(findSwingMarkers(currentBars,3));
- }
+ function updateHighLowMarkers(){if(highLowVisible)build530Levels();else highLowLevels=[];if(typeof renderDrawings==='function')renderDrawings()}
  $('highLow').addEventListener('click',()=>{
   highLowVisible=!highLowVisible;
-  $('highLow').textContent=highLowVisible?'Hide Highs & Lows':'Highs & Lows';
+  $('highLow').textContent=highLowVisible?'Hide 5:30 H/L':'5:30 High/Low';
   $('highLow').style.borderColor=highLowVisible?'#26a69a':'';
   updateHighLowMarkers();
-  if(highLowVisible)$('ohlc').textContent='Swing highs (H) and lows (L) shown · 3 candles on each side';
+  $('ohlc').textContent=highLowVisible?'Showing the high and low of each 5:30 AM 3-minute candle in '+$('chartTimezone').selectedOptions[0].text+'.':'5:30 candle levels hidden.';
  });
 
  let sourceBars=[],loadedFileName='',currentBars=[],isLight=false,indicatorSeries={};
- const fmtDate=t=>new Date(t*1000).toLocaleString();
+ const fmtDate=t=>new Intl.DateTimeFormat(undefined,{timeZone:getChartTimeZone()==='local'?undefined:getChartTimeZone(),year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(t*1000));
+ function applyChartTimezone(){
+  const tz=getChartTimeZone();
+  const formatTick=time=>{
+   const seconds=typeof time==='number'?time:(time&&time.year?Math.floor(Date.UTC(time.year,time.month-1,time.day)/1000):NaN);
+   if(!Number.isFinite(seconds))return '';
+   return new Intl.DateTimeFormat(undefined,{timeZone:tz==='local'?undefined:tz,month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(seconds*1000));
+  };
+  chart.applyOptions({localization:{timeFormatter:formatTick},timeScale:{tickMarkFormatter:(time)=>formatTick(time)}});
+  if(highLowVisible)build530Levels();
+  if(typeof renderDrawings==='function')renderDrawings();
+ }
  const DB_NAME='FreeTradeChartsLocal',DB_VERSION=1,CHUNK_SIZE=20000;
  function openHistoryDB(){
   return new Promise((resolve,reject)=>{
@@ -257,7 +269,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  function render(){
   if(!sourceBars.length)return;
   const tf=$('timeframe').value;const bars=aggregate(sourceBars,tf);
-  currentBars=bars;candles.setData(bars);chart.timeScale().fitContent();$('empty').style.display='none';$('fit').disabled=false;updateIndicators();updateHighLowMarkers();
+  currentBars=bars;candles.setData(bars);chart.timeScale().fitContent();$('empty').style.display='none';$('fit').disabled=false;updateIndicators();updateHighLowMarkers();renderDrawings();
   $('range').textContent=fmtDate(bars[0].time)+' — '+fmtDate(bars[bars.length-1].time);
   $('count').textContent=bars.length.toLocaleString()+' candles displayed · '+sourceBars.length.toLocaleString()+' source rows · '+tf+' minute'+(tf==='1'?'':'s');
   $('symbol').textContent=loadedFileName.toLowerCase().includes('xau')?'XAUUSDx':'MT5 OHLC';
@@ -420,6 +432,8 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   $('gotoModal').style.display='none';
  });
 
+ $('chartTimezone').addEventListener('change',()=>{applyChartTimezone();render();});
+ applyChartTimezone();
  $('timeframe').addEventListener('change',render);
  $('fit').addEventListener('click',()=>chart.timeScale().fitContent());
  $('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.querySelector('.main').requestFullscreen();else await document.exitFullscreen()}catch(e){}});
@@ -447,6 +461,16 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
     line.style.pointerEvents='stroke';line.style.cursor='move';drawLayer.appendChild(line);
     [a,b].forEach((p,handle)=>{const circle=svgEl('circle',{cx:p.x,cy:p.y,r:5,fill:d.color,stroke:'#fff','stroke-width':1,'data-drag':index,'data-handle':handle});circle.style.pointerEvents='all';circle.style.cursor='move';drawLayer.appendChild(circle)});
    }
+  });
+  highLowLevels.forEach(level=>{
+   const x1=chart.timeScale().timeToCoordinate(level.time),x2=chart.timeScale().timeToCoordinate(level.end);
+   if(x1===null||x2===null)return;
+   [['high',level.high,'#ef5350','5:30 H'],['low',level.low,'#26a69a','5:30 L']].forEach(([kind,price,color,label])=>{
+    const y=candles.priceToCoordinate(price);if(y===null)return;
+    const line=svgEl('line',{x1,y1:y,x2,y2:y,stroke:color,'stroke-width':1.5,'stroke-dasharray':'5 3','pointer-events':'none'});
+    drawLayer.appendChild(line);
+    if(x2-x1>70){const txt=svgEl('text',{x:x1+4,y:y-4,fill:color,'font-size':10,'pointer-events':'none'});txt.textContent=label+' '+Number(price).toFixed(2);drawLayer.appendChild(txt)}
+   });
   });
  }
  document.querySelectorAll('[data-tool]').forEach(btn=>btn.addEventListener('click',()=>{
