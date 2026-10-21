@@ -59,45 +59,59 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   return Number.isFinite(dt.getTime())?Math.floor(dt.getTime()/1000):NaN;
  }
  function norm(s){return String(s||'').replace(/^\uFEFF/,'').trim().toLowerCase().replace(/[ _-]/g,'')}
- async function parseCsv(text){
-  const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);
-  let first='';
-  for(const line of lines){if(line.trim()){first=line;break}}
-  const tabs=(first.match(/\t/g)||[]).length, commas=(first.match(/,/g)||[]).length, semis=(first.match(/;/g)||[]).length;
-  const delim=tabs>commas&&tabs>semis?'\t':(semis>commas?';':',');
-  const splitLine=line=>{
+ async function parseCsv(file){
+  const reader=file.stream().getReader(),decoder=new TextDecoder();
+  let carry='',delim=null,di=0,ti=1,oi=2,hi=3,li=4,ci=5,hasHeader=false;
+  const bars=[];let rowsSeen=0,valid=0,previousTime=-Infinity,needsSort=false;
+  const splitLine=(line,sep)=>{
    const out=[];let cur='',q=false;
-   for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===delim&&!q){out.push(cur.trim());cur=''}else cur+=ch}
+   for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===sep&&!q){out.push(cur.trim());cur=''}else cur+=ch}
    out.push(cur.trim());return out;
   };
-  let firstIndex=lines.findIndex(x=>x.trim());
-  if(firstIndex<0)throw Error('The file is empty.');
-  const firstRow=splitLine(lines[firstIndex]);
-  let headers=firstRow.map(norm);
-  const find=names=>headers.findIndex(h=>names.includes(h));
-  let di=find(['date','day','datetime','time']),ti=find(['time','hour']);
-  let oi=find(['open','o']),hi=find(['high','h']),li=find(['low','l']),ci=find(['close','c','last']);
-  const headerLooksValid=oi>=0&&hi>=0&&li>=0&&ci>=0&&di>=0;
-  let rowStart=firstIndex+1;
-  if(!headerLooksValid){di=0;ti=1;oi=2;hi=3;li=4;ci=5;rowStart=firstIndex}
-  else if(headers[di]==='time'&&ti===di)ti=-1;
-  const num=v=>Number(String(v??'').trim().replace(/,/g,''));
-  const bars=[];
-  const total=lines.length-rowStart;
-  for(let i=rowStart;i<lines.length;i++){
-   const line=lines[i];if(!line.trim())continue;
-   const row=splitLine(line);
+  const init=line=>{
+   const tabs=(line.match(/\t/g)||[]).length,commas=(line.match(/,/g)||[]).length,semis=(line.match(/;/g)||[]).length;
+   delim=tabs>commas&&tabs>semis?'\t':(semis>commas?';':',');
+   const headers=splitLine(line,delim).map(norm);
+   const find=names=>headers.findIndex(h=>names.includes(h));
+   const d=find(['date','day','datetime','time']),t=find(['time','hour']);
+   const o=find(['open','o']),h=find(['high','h']),l=find(['low','l']),cl=find(['close','c','last']);
+   if(o>=0&&h>=0&&l>=0&&cl>=0&&d>=0){di=d;ti=(headers[d]==='time'&&t===d)?-1:t;oi=o;hi=h;li=l;ci=cl;hasHeader=true}
+   else {di=0;ti=1;oi=2;hi=3;li=4;ci=5;hasHeader=false;processLine(line)}
+  };
+  const processLine=line=>{
+   if(!line.trim())return;
+   rowsSeen++;
+   const row=splitLine(line,delim);
    const time=parseDate(row[di],ti>=0?row[ti]:'');
-   const o=num(row[oi]),h=num(row[hi]),l=num(row[li]),c=num(row[ci]);
-   if(Number.isFinite(time)&&[o,h,l,c].every(Number.isFinite)&&h>=l)bars.push({time,open:o,high:h,low:l,close:c});
-   if((i-rowStart)%4000===3999){
-    $('count').textContent='Reading rows '+(i-rowStart+1).toLocaleString()+' / '+total.toLocaleString()+'…';
+   const num=v=>Number(String(v??'').trim().replace(/,/g,''));
+   const o=num(row[oi]),h=num(row[hi]),l=num(row[li]),cl=num(row[ci]);
+   if(Number.isFinite(time)&&[o,h,l,cl].every(Number.isFinite)&&h>=l){
+    if(time<previousTime)needsSort=true;previousTime=time;
+    bars.push({time,open:o,high:h,low:l,close:cl});valid++;
+   }
+   if(rowsSeen%5000===0){
+    $('count').textContent='Reading '+rowsSeen.toLocaleString()+' rows · '+valid.toLocaleString()+' valid candles…';
+   }
+  };
+  try{
+   while(true){
+    const {value,done}=await reader.read();
+    if(done)break;
+    carry+=decoder.decode(value,{stream:true});
+    const lines=carry.split(/\r?\n/);carry=lines.pop()||'';
+    for(const line of lines){
+     if(delim===null){if(line.trim())init(line)}
+     else processLine(line);
+    }
+    $('range').textContent='Reading file… '+Math.min(99,Math.round((reader.bytesRead||0)/(file.size||1)*100))+'%';
     await new Promise(resolve=>setTimeout(resolve,0));
    }
-  }
-  bars.sort((a,b)=>a.time-b.time);
-  const unique=[];for(let i=0;i<bars.length;i++){const b=bars[i];if(unique.length&&unique[unique.length-1].time===b.time)unique[unique.length-1]=b;else unique.push(b)}
-  if(!unique.length)throw Error('No valid OHLC rows found. Expected MT5 columns Date, Time, Open, High, Low, Close. Try exporting bars from an MT5 chart.');
+   carry+=decoder.decode();
+   if(carry.trim()){if(delim===null)init(carry);else processLine(carry)}
+  }catch(err){try{await reader.cancel()}catch(e){};throw err}
+  if(!bars.length)throw Error('No valid OHLC rows found. Expected Date, Time, Open, High, Low, Close columns in the MT5 CSV.');
+  if(needsSort)bars.sort((a,b)=>a.time-b.time);
+  const unique=[];for(const b of bars){if(unique.length&&unique[unique.length-1].time===b.time)unique[unique.length-1]=b;else unique.push(b)}
   return unique;
  }
  function aggregate(bars,minutes){
@@ -123,7 +137,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  $('csvFile').addEventListener('change',async e=>{
   const file=e.target.files&&e.target.files[0];if(!file)return;
   $('range').textContent='Reading file…';$('count').textContent='Loading history…';
-  try{const text=await file.text();sourceBars=await parseCsv(text);loadedFileName=file.name;render();$('ohlc').textContent='Imported locally: '+file.name;$('range').textContent=fmtDate(sourceBars[0].time)+' — '+fmtDate(sourceBars[sourceBars.length-1].time);}
+  try{sourceBars=await parseCsv(file);loadedFileName=file.name;render();$('ohlc').textContent='Imported locally: '+file.name;$('range').textContent=fmtDate(sourceBars[0].time)+' — '+fmtDate(sourceBars[sourceBars.length-1].time);}
   catch(err){$('range').textContent='Import failed';$('count').textContent=err.message;alert(err.message)}
   e.target.value='';
  });
