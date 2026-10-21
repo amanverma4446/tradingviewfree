@@ -427,7 +427,30 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   const q=await res.json();if(!Number.isFinite(Number(q.price))||Number(q.price)<=0)throw Error('Invalid Gold API quote');
   return {time:Math.floor(Date.parse(q.updatedAt||new Date().toISOString())/1000),price:Number(q.price)}
  }
- async function goldFeedIncrementalSave(){if(sourceBars.length)await saveHistoryLocally(sourceBars,loadedFileName||'Gold API XAUUSD')}
+ async function goldFeedIncrementalSave(){
+  if(!sourceBars.length)return;
+  const db=await openHistoryDB();
+  try{
+   const meta=await new Promise((resolve,reject)=>{const tx=db.transaction('meta','readonly'),r=tx.objectStore('meta').get('current');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+   if(!meta||!meta.chunks){db.close();await saveHistoryLocally(sourceBars,loadedFileName||'Gold API XAUUSD');return}
+   const first=Math.max(0,(meta.count||0)-1),changed=new Map();
+   for(let i=first;i<sourceBars.length;i++){
+    const ci=Math.floor(i/CHUNK_SIZE),offset=i%CHUNK_SIZE;
+    if(!changed.has(ci)){
+     const old=await new Promise((resolve,reject)=>{const tx=db.transaction('chunks','readonly'),r=tx.objectStore('chunks').get('bars_'+ci);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+     changed.set(ci,old&&Array.isArray(old.bars)?old.bars:[]);
+    }
+    changed.get(ci)[offset]=sourceBars[i];
+   }
+   await new Promise((resolve,reject)=>{
+    const tx=db.transaction('chunks','readwrite'),store=tx.objectStore('chunks');
+    for(const [ci,bars] of changed)store.put({id:'bars_'+ci,bars});
+    tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('Could not append live candles.'));
+   });
+   meta.count=sourceBars.length;meta.chunks=Math.ceil(sourceBars.length/CHUNK_SIZE);meta.firstTime=sourceBars[0].time;meta.lastTime=sourceBars[sourceBars.length-1].time;meta.fileName=loadedFileName||'Gold API XAUUSD';meta.savedAt=Date.now();
+   await new Promise((resolve,reject)=>{const tx=db.transaction('meta','readwrite');tx.objectStore('meta').put(meta);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+  }finally{try{db.close()}catch(e){}}
+ }
  async function goldFeedLiveTick(){
   if(goldFeedBusy)return;goldFeedBusy=true;
   try{
