@@ -12,9 +12,9 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
 .toolbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.toolbar label{color:var(--muted);font-size:12px}
 .topright{margin-left:auto;display:flex;gap:8px;align-items:center}.status{font-size:12px;color:var(--muted);max-width:44vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .main{flex:1;min-height:0;display:flex;flex-direction:column;background:var(--panel)}.charthead{height:40px;flex:0 0 40px;display:flex;align-items:center;gap:14px;padding:0 14px;border-bottom:1px solid var(--line)}.symbol{font-weight:700;font-size:14px;color:#f0f3fa}.ohlc{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.chart{flex:1;min-height:0;position:relative}.empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted);line-height:1.7;pointer-events:none}.empty strong{color:var(--text);font-size:16px}.empty-inner{max-width:540px}.chart canvas{display:block}
+.chart{flex:1;min-height:0;position:relative}.bottomtools{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--panel);border-top:1px solid var(--line);color:var(--muted);font-size:11px}.bottomhint{opacity:.75}.empty{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted);line-height:1.7;pointer-events:none}.empty strong{color:var(--text);font-size:16px}.empty-inner{max-width:540px}.chart canvas{display:block}
 .footer{height:30px;flex:0 0 30px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;color:#77808f;background:var(--panel);border-top:1px solid var(--line);font-size:11px}.footer span:last-child{text-align:right}
-@media(max-width:850px){.top{height:auto;min-height:54px;padding:8px;flex-wrap:wrap}.topright{margin-left:0;width:100%}.status{max-width:100%}.toolbar{gap:5px}.charthead{gap:8px;padding:0 8px}.footer{font-size:10px}}
+@media(max-width:850px){.bottomhint{display:none}.top{height:auto;min-height:54px;padding:8px;flex-wrap:wrap}.topright{margin-left:0;width:100%}.status{max-width:100%}.toolbar{gap:5px}.charthead{gap:8px;padding:0 8px}.footer{font-size:10px}}
 </style>
 </head><body><div class="app">
 <header class="top">
@@ -23,13 +23,14 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   <label class="filebtn" for="csvFile">⬆ Import MT5 CSV</label><input id="csvFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
   <label for="timeframe">Timeframe</label><select id="timeframe"><option value="1">1 minute</option><option value="3" selected>3 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="D">1 day</option></select>
   <label for="chartTimezone">Timezone</label><select id="chartTimezone" title="Timezone for chart labels and 5:30 candle levels"><option value="Asia/Kolkata" selected>IST (UTC+5:30)</option><option value="UTC">UTC</option><option value="Europe/London">London</option><option value="Europe/Helsinki">Helsinki</option><option value="Asia/Dubai">Dubai</option><option value="Asia/Singapore">Singapore</option><option value="America/New_York">New York</option><option value="local">Local</option></select>
-  <button id="highLow" title="Show or hide the 5:30 AM 3-minute candle high and low">5:30 High/Low</button><button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="gotoOpen" title="Jump to a date or custom range">Go to ▦</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
+  <button id="highLow" title="Show or hide the 5:30 AM 3-minute candle high and low">5:30 High/Low</button><button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
  </div>
 </header>
 <main class="main">
  <div class="charthead"><span class="symbol" id="symbol">XAUUSDx</span><span class="ohlc" id="ohlc">Import your broker's historical candles to begin</span><span class="status" id="range" style="margin-left:auto">No data loaded</span></div>
- <div class="drawtools"><span style="color:var(--muted);font-size:11px;margin-right:4px">Draw</span><button data-tool="cursor" class="active">↖ Cursor</button><button data-tool="trend">╱ Trend line</button><button data-tool="horizontal">― Horizontal line</button><button id="clearDrawings">Clear drawings</button></div>
+ <div class="drawtools"><span style="color:var(--muted);font-size:11px;margin-right:4px">Draw</span><button data-tool="cursor" class="active">↖ Cursor</button><button data-tool="trend">╱ Trend line</button><button data-tool="horizontal">― Horizontal line</button><button data-tool="long">↗ Long position</button><button data-tool="short">↘ Short position</button><button id="clearDrawings">Clear drawings</button></div>
  <div class="chart" id="chart"><div class="empty" id="empty"><div class="empty-inner"><strong>Load one year of your XAUUSDx history</strong><br>Export historical bars from your MT5 broker, then click <b>Import MT5 CSV</b>.<br>For a 3-minute chart, import M3 bars or M1 bars (M1 data will be aggregated to M3).<br><br><span style="font-size:12px">Your file is processed locally in this browser and is not uploaded to a server.</span></div></div></div>
+ <div class="bottomtools"><span>Chart navigation</span><button id="gotoOpen" title="Jump to a date or custom range">Go to ▦</button><span class="bottomhint">Choose a date or custom range</span></div>
 </main>
 
 <div id="pineModal" style="display:none;position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);align-items:center;justify-content:center;padding:18px">
@@ -473,7 +474,25 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   const w=$('chart').clientWidth,h=$('chart').clientHeight;
   drawLayer.setAttribute('viewBox','0 0 '+w+' '+h);
   drawings.forEach((d,index)=>{
-   if(d.type==='horizontal'){
+   if(d.type==='position'){
+    const x1=chart.timeScale().timeToCoordinate(d.time);if(x1===null)return;
+    const x2=Math.min(w-65,Math.max(x1+100,x1+Math.min(260,w*.34)));
+    const yEntry=candles.priceToCoordinate(d.entry),yStop=candles.priceToCoordinate(d.stop),yTarget=candles.priceToCoordinate(d.target);
+    if(yEntry===null||yStop===null||yTarget===null)return;
+    const green=d.side==='long'?'#089981':'#ef5350',red=d.side==='long'?'#f23645':'#089981';
+    const top=Math.min(yEntry,yTarget),heightTarget=Math.max(1,Math.abs(yEntry-yTarget));
+    const riskTop=Math.min(yEntry,yStop),riskHeight=Math.max(1,Math.abs(yEntry-yStop));
+    const profit= d.side==='long' ? d.target-d.entry : d.entry-d.target;
+    const risk=Math.abs(d.entry-d.stop),rr=risk>0?profit/risk:0;
+    const amount=Math.abs(profit)*100;
+    drawLayer.appendChild(svgEl('rect',{x:x1,y:top,width:Math.max(1,x2-x1),height:heightTarget,fill:green,'fill-opacity':.09,stroke:'none','pointer-events':'none'}));
+    drawLayer.appendChild(svgEl('rect',{x:x1,y:riskTop,width:Math.max(1,x2-x1),height:riskHeight,fill:red,'fill-opacity':.08,stroke:'none','pointer-events':'none'}));
+    [[yTarget,green],[yEntry,'#7d8799'],[yStop,red]].forEach(([y,color])=>drawLayer.appendChild(svgEl('line',{x1,y1:y,x2,y2:y,stroke:color,'stroke-width':1.5,'pointer-events':'none'})));
+    const title=svgEl('text',{x:(x1+x2)/2,y:yTarget-7,fill:green,'font-size':11,'text-anchor':'middle','pointer-events':'none'});title.textContent='Target: '+d.target.toFixed(2)+' · R:R '+rr.toFixed(2);drawLayer.appendChild(title);
+    const mid=svgEl('text',{x:(x1+x2)/2,y:yEntry-5,fill:'#f0f3fa','font-size':11,'text-anchor':'middle','pointer-events':'none'});mid.textContent=(d.side==='long'?'LONG':'SHORT')+' · Entry '+d.entry.toFixed(2);drawLayer.appendChild(mid);
+    const stop=svgEl('text',{x:(x1+x2)/2,y:yStop+14,fill:red,'font-size':11,'text-anchor':'middle','pointer-events':'none'});stop.textContent='Stop: '+d.stop.toFixed(2);drawLayer.appendChild(stop);
+    [[yStop,0,red],[yEntry,1,'#f0f3fa'],[yTarget,2,green]].forEach(([y,handle,color])=>{const circle=svgEl('circle',{cx:x2,cy:y,r:5,fill:color,stroke:'#fff','stroke-width':1,'data-drag':index,'data-handle':handle});circle.style.pointerEvents='all';circle.style.cursor='ns-resize';drawLayer.appendChild(circle)});
+   }else if(d.type==='horizontal'){
     const y=candles.priceToCoordinate(d.price);if(y===null)return;
     const line=svgEl('line',{x1:0,y1:y,x2:w-65,y2:y,stroke:d.color,'stroke-width':2,'pointer-events':'stroke','data-drag':index});
     line.style.pointerEvents='stroke';line.style.cursor='ns-resize';drawLayer.appendChild(line);
@@ -506,6 +525,20 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   const price=candles.coordinateToPrice(param.point.y);
   if(price===null||!Number.isFinite(price))return;
   const point={time:param.time,value:price};
+  if(activeTool==='long'||activeTool==='short'){
+   if(!pendingPoint){pendingPoint={time:param.time,value:price};$('ohlc').textContent=(activeTool==='long'?'Long':'Short')+' position: click the stop-loss price';return}
+   const entry=pendingPoint.value,stop=price,side=activeTool,risk=Math.abs(entry-stop);
+   if(risk<=0){pendingPoint=null;$('ohlc').textContent='Entry and stop must be at different prices.';return}
+   if((side==='long'&&stop>=entry)||(side==='short'&&stop<=entry)){
+    pendingPoint=null;$('ohlc').textContent='For '+side+', place the stop on the '+(side==='long'?'lower':'higher')+' side of entry. Select the tool and try again.';return
+   }
+   const target=side==='long'?entry+2*risk:entry-2*risk;
+   const entryIndex=currentBars.findIndex(b=>b.time===pendingPoint.time);
+   const endBar=currentBars[Math.min(currentBars.length-1,Math.max(0,(entryIndex<0?0:entryIndex)+60))];
+   drawings.push({type:'position',side,time:pendingPoint.time,endTime:endBar?endBar.time:pendingPoint.time,entry,stop,target});
+   pendingPoint=null;activeTool='cursor';document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool==='cursor'));
+   renderDrawings();$('ohlc').textContent='Position tool added. Drag the stop, entry or target handle to adjust levels.';return;
+  }
   if(activeTool==='horizontal'){
    drawings.push({type:'horizontal',price,color:'#f7c948'});
    renderDrawings();return;
@@ -526,6 +559,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   const rect=$('chart').getBoundingClientRect(),x=e.clientX-rect.left,y=e.clientY-rect.top,d=drawings[dragState.index];if(!d)return;
   const price=candles.coordinateToPrice(y);if(price===null||!Number.isFinite(price))return;
   if(d.type==='horizontal')d.price=price;
+  else if(d.type==='position'){if(dragState.handle===0)d.stop=price;else if(dragState.handle===1)d.entry=price;else if(dragState.handle===2)d.target=price;}
   else{
    const time=chart.timeScale().coordinateToTime(x);if(time===null||time===undefined)return;
    d.points[dragState.handle===null?1:dragState.handle]={time,value:price};
