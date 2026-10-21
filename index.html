@@ -409,28 +409,51 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  $('gotoPrev').addEventListener('click',()=>{gotoMonthDate=new Date(gotoMonthDate.getFullYear(),gotoMonthDate.getMonth()-1,1);gotoRenderCalendar()});
  $('gotoNext').addEventListener('click',()=>{gotoMonthDate=new Date(gotoMonthDate.getFullYear(),gotoMonthDate.getMonth()+1,1);gotoRenderCalendar()});
  $('gotoDate').addEventListener('change',()=>{if($('gotoDate').value){const d=new Date($('gotoDate').value+'T00:00:00');gotoMonthDate=new Date(d.getFullYear(),d.getMonth(),1);gotoRenderCalendar()}});
- $('gotoApply').addEventListener('click',()=>{
-  if(!currentBars.length){$('gotoMessage').textContent='Import history first.';return}
-  let fromTime,toTime;
-  if(gotoMode==='date'){
-   if(!$('gotoDate').value){$('gotoMessage').textContent='Choose a date.';return}
-   const parts=$('gotoDate').value.split('-').map(Number),tp=($('gotoTime').value||'00:00').split(':').map(Number);
-   const target=Math.floor(new Date(parts[0],parts[1]-1,parts[2],tp[0]||0,tp[1]||0).getTime()/1000);
-   let index=0;for(let i=0;i<currentBars.length;i++){if(currentBars[i].time<=target)index=i;else break}
-   if(target<currentBars[0].time||target>currentBars[currentBars.length-1].time){$('gotoMessage').textContent='Selected date/time is outside your imported history.';return}
-   const visible=chart.timeScale().getVisibleLogicalRange();const span=visible?Math.max(40,visible.to-visible.from):180;
-   chart.timeScale().setVisibleLogicalRange({from:Math.max(0,index-span*.75),to:Math.min(currentBars.length-1,index+span*.25)});
-  }else{
-   if(!$('gotoFrom').value||!$('gotoTo').value||$('gotoFrom').value>$('gotoTo').value){$('gotoMessage').textContent='Choose a valid start and end date.';return}
-   const f=$('gotoFrom').value.split('-').map(Number),t=$('gotoTo').value.split('-').map(Number);
-   fromTime=Math.floor(new Date(f[0],f[1]-1,f[2]).getTime()/1000);
-   toTime=Math.floor(new Date(t[0],t[1]-1,t[2],23,59,59).getTime()/1000);
-   const first=currentBars.find(b=>b.time>=fromTime),last=[...currentBars].reverse().find(b=>b.time<=toTime);
-   if(!first||!last||first.time>last.time){$('gotoMessage').textContent='This range does not overlap your imported history.';return}
-   chart.timeScale().setVisibleRange({from:first.time,to:last.time});
+ function gotoWallTimeToEpoch(dateStr,timeStr,endOfDay=false){
+  const [y,m,d]=dateStr.split('-').map(Number),[hh,mm]=String(timeStr|| (endOfDay?'23:59':'00:00')).split(':').map(Number);
+  const desired={year:y,month:m,day:d,hour:endOfDay?23:(hh||0),minute:endOfDay?59:(mm||0),second:endOfDay?59:0};
+  const tz=getChartTimeZone();
+  if(tz==='local')return Math.floor(new Date(y,m-1,d,desired.hour,desired.minute,desired.second).getTime()/1000);
+  let guess=Date.UTC(y,m-1,d,desired.hour,desired.minute,desired.second);
+  for(let i=0;i<3;i++){
+   const p={};new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'}).formatToParts(new Date(guess)).forEach(x=>{if(x.type!=='literal')p[x.type]=Number(x.value)});
+   const represented=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);
+   const wanted=Date.UTC(y,m-1,d,desired.hour,desired.minute,desired.second);
+   guess+=wanted-represented;
   }
-  $('gotoModal').style.display='none';
- });
+  return Math.floor(guess/1000);
+ }
+ function gotoLowerBound(target){
+  let lo=0,hi=currentBars.length;
+  while(lo<hi){const mid=(lo+hi)>>1;if(currentBars[mid].time<target)lo=mid+1;else hi=mid}
+  return lo;
+ }
+ $('gotoApply').addEventListener('click',()=>{
+  try{
+   if(!currentBars.length){$('gotoMessage').textContent='Import history first.';return}
+   if(gotoMode==='date'){
+    if(!$('gotoDate').value){$('gotoMessage').textContent='Choose a date.';return}
+    const target=gotoWallTimeToEpoch($('gotoDate').value,$('gotoTime').value);
+    if(target<currentBars[0].time||target>currentBars[currentBars.length-1].time){
+     $('gotoMessage').textContent='Selected date/time is outside your imported history. Choose a date between '+fmtDate(currentBars[0].time)+' and '+fmtDate(currentBars[currentBars.length-1].time)+'.';return;
+    }
+    const index=Math.max(0,Math.min(currentBars.length-1,gotoLowerBound(target)));
+    const visible=chart.timeScale().getVisibleLogicalRange();
+    const span=visible?Math.max(40,visible.to-visible.from):180;
+    const from=Math.max(0,index-span*.5),to=Math.min(currentBars.length-1,index+span*.5);
+    chart.timeScale().setVisibleLogicalRange({from,to});
+    $('gotoMessage').textContent='Showing candles near '+fmtDate(currentBars[index].time);
+   }else{
+    if(!$('gotoFrom').value||!$('gotoTo').value||$('gotoFrom').value>$('gotoTo').value){$('gotoMessage').textContent='Choose a valid start and end date.';return}
+    const fromTime=gotoWallTimeToEpoch($('gotoFrom').value,'00:00');
+    const toTime=gotoWallTimeToEpoch($('gotoTo').value,'23:59',true);
+    const firstIndex=gotoLowerBound(fromTime),lastIndex=gotoLowerBound(toTime+1)-1;
+    if(firstIndex>=currentBars.length||lastIndex<0||firstIndex>lastIndex){$('gotoMessage').textContent='This range does not overlap your imported history.';return}
+    chart.timeScale().setVisibleLogicalRange({from:firstIndex,to:lastIndex});
+   }
+   $('gotoModal').style.display='none';
+  }catch(err){$('gotoMessage').textContent='Could not navigate to that date: '+err.message}
+ });;
 
  $('chartTimezone').addEventListener('change',()=>{applyChartTimezone();render();});
  applyChartTimezone();
