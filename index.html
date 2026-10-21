@@ -96,8 +96,8 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
     await new Promise(resolve=>setTimeout(resolve,0));
    }
    if(!all.length)return false;
-   sourceBars=all;loadedFileName=meta.fileName||'Saved MT5 history';render();
-   $('ohlc').textContent='Restored from this browser: '+loadedFileName;
+   sourceBars=all;loadedFileName=meta.fileName||'Saved MT5 history';
+   $('ohlc').textContent='Restored from this browser: '+loadedFileName;render();
    $('savedStatus').textContent='Saved on this device';
    return true;
   }catch(err){
@@ -199,7 +199,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  $('csvFile').addEventListener('change',async e=>{
   const file=e.target.files&&e.target.files[0];if(!file)return;
   $('range').textContent='Reading file…';$('count').textContent='Loading history…';
-  try{sourceBars=await parseCsv(file);loadedFileName=file.name;render();$('ohlc').textContent='Imported locally: '+file.name;$('range').textContent=fmtDate(sourceBars[0].time)+' — '+fmtDate(sourceBars[sourceBars.length-1].time);$('savedStatus').textContent='Saving history…';await saveHistoryLocally(sourceBars,loadedFileName);}
+  try{sourceBars=await parseCsv(file);loadedFileName=file.name;$('savedStatus').textContent='Saving history…';await saveHistoryLocally(sourceBars,loadedFileName);$('ohlc').textContent='Imported locally: '+file.name;$('range').textContent=fmtDate(sourceBars[0].time)+' — '+fmtDate(sourceBars[sourceBars.length-1].time);render();}
   catch(err){$('range').textContent='Import failed';$('count').textContent=err.message;alert(err.message)}
   e.target.value='';
  });
@@ -223,12 +223,12 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  function updateIndicators(){
   const defs=[['ema20','EMA 20',20,'ema','#f7c948'],['ema50','EMA 50',50,'ema','#26a69a'],['sma200','SMA 200',200,'sma','#ab47bc']];
   defs.forEach(([id,name,n,type,color])=>{
-   if($(id).checked&&currentBars.length){
+   const control=$(id); if(control&&control.checked&&currentBars.length){
     if(!indicatorSeries[id])indicatorSeries[id]=chart.addSeries(LightweightCharts.LineSeries,{color,lineWidth:2,title:name,priceLineVisible:false,lastValueVisible:true});
     indicatorSeries[id].setData(calcMA(currentBars,n,type));
    }else if(indicatorSeries[id]){chart.removeSeries(indicatorSeries[id]);delete indicatorSeries[id]}
   });
-  if($('bb').checked&&currentBars.length){
+  if($('bb')&&$('bb').checked&&currentBars.length){
    const rows=calcMA(currentBars,20,'bb');
    [['bbU','upper','#7e57c2'],['bbL','lower','#7e57c2'],['bbM','mid','#7986cb']].forEach(([id,key,color])=>{
     if(!indicatorSeries[id])indicatorSeries[id]=chart.addSeries(LightweightCharts.LineSeries,{color,lineWidth:1,lineStyle:LightweightCharts.LineStyle.Dashed,priceLineVisible:false,lastValueVisible:false,title:id});
@@ -236,8 +236,8 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
    });
   }else{['bbU','bbL','bbM'].forEach(id=>{if(indicatorSeries[id]){chart.removeSeries(indicatorSeries[id]);delete indicatorSeries[id]}})}
  }
- $('indicators').addEventListener('click',()=>{$('indicatorMenu').style.display=$('indicatorMenu').style.display==='block'?'none':'block'});
- ['ema20','ema50','sma200','bb'].forEach(id=>$(id).addEventListener('change',updateIndicators));
+ if($('indicators')&&$('indicatorMenu'))$('indicators').addEventListener('click',()=>{$('indicatorMenu').style.display=$('indicatorMenu').style.display==='block'?'none':'block'});
+ ['ema20','ema50','sma200','bb'].forEach(id=>{const el=$(id);if(el)el.addEventListener('change',updateIndicators)});
  document.querySelectorAll('[data-range]').forEach(btn=>btn.addEventListener('click',()=>{
   document.querySelectorAll('[data-range]').forEach(b=>b.classList.toggle('active',b===btn));
   if(!currentBars.length)return;
@@ -254,7 +254,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   else if(val==='5Y')from=new Date(d.getFullYear()-5,d.getMonth(),d.getDate()).getTime()/1000;
   const first=currentBars.find(b=>b.time>=from);if(first)chart.timeScale().setVisibleRange({from:first.time,to:last});
  }));
- $('theme').addEventListener('click',()=>{
+ if($('theme'))$('theme').addEventListener('click',()=>{
   isLight=!isLight;
   const bg=isLight?'#f5f7fa':'#131722',fg=isLight?'#202633':'#d1d4dc',grid=isLight?'rgba(180,185,195,.55)':'rgba(42,46,57,.65)';
   chart.applyOptions({layout:{background:{type:'solid',color:bg},textColor:fg},grid:{vertLines:{color:grid},horzLines:{color:grid}},rightPriceScale:{borderColor:isLight?'#d1d5dd':'#2a2e39'},timeScale:{borderColor:isLight?'#d1d5dd':'#2a2e39'}});
@@ -262,10 +262,10 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   document.querySelectorAll('.top,.main,.charthead,.rangetools,.footer').forEach(el=>{el.style.background=isLight?'#f5f7fa':'';el.style.color=isLight?'#202633':'';el.style.borderColor=isLight?'#d1d5dd':''});
  });
  const pineExample='//@version=5\nindicator("My indicator", overlay=true)\nplot(ta.ema(close, 20))\nplot(ta.sma(close, 50))';
- $('pine').addEventListener('click',()=>{$('pineModal').style.display='flex';if(!$('pineCode').value)$('pineCode').value=pineExample});
- $('closePine').addEventListener('click',()=>{$('pineModal').style.display='none'});
- $('resetPine').addEventListener('click',()=>{$('pineCode').value=pineExample;$('pineMessage').textContent='Example loaded. Click Apply supported plots to draw the moving averages.'});
- $('applyPine').addEventListener('click',()=>{
+ if($('pine')&&$('pineModal')&&$('pineCode'))$('pine').addEventListener('click',()=>{$('pineModal').style.display='flex';if(!$('pineCode').value)$('pineCode').value=pineExample});
+ if($('closePine')&&$('pineModal'))$('closePine').addEventListener('click',()=>{$('pineModal').style.display='none'});
+ if($('resetPine')&&$('pineCode')&&$('pineMessage'))$('resetPine').addEventListener('click',()=>{$('pineCode').value=pineExample;$('pineMessage').textContent='Example loaded. Click Apply supported plots to draw the moving averages.'});
+ if($('applyPine')&&$('pineCode')&&$('pineMessage'))$('applyPine').addEventListener('click',()=>{
   const code=$('pineCode').value,specs=[];
   const re=/plot\s*\(\s*ta\.(ema|sma)\s*\(\s*close\s*,\s*(\d{1,4})\s*\)\s*\)/gi;
   let m;while((m=re.exec(code))!==null){const n=Number(m[2]);if(n>=1&&n<=2000)specs.push({type:m[1].toLowerCase(),n})}
