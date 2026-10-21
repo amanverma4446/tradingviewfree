@@ -1,58 +1,112 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FreeTrade Lab</title>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FreeTrade Charts</title>
 <style>
-:root{--bg:#0b0e14;--panel:#111722;--line:#263244;--text:#e6edf7;--muted:#8e9bb0;--green:#20c997;--red:#ff647c;--blue:#6ea8fe}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px system-ui,Segoe UI,Arial}header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;background:#0e131c;border-bottom:1px solid var(--line);flex-wrap:wrap}.brand{font-size:20px;font-weight:800}.brand span{color:var(--green)}button,input,select,textarea{font:inherit}button{cursor:pointer;color:var(--text);background:#202b3b;border:1px solid var(--line);padding:8px 11px;border-radius:6px}button.primary{background:#176b58}button:disabled{opacity:.4}main{padding:14px;max-width:1800px;margin:auto}.layout{display:grid;grid-template-columns:320px minmax(0,1fr);gap:14px}.panel,.metric{background:var(--panel);border:1px solid var(--line);border-radius:9px;overflow:hidden}.head{padding:12px 14px;border-bottom:1px solid var(--line);font-weight:700;display:flex;justify-content:space-between}.body{padding:13px}.field{margin-bottom:11px}.field label{display:block;font-size:12px;color:#aab6c8;margin-bottom:5px}.field input,.field select,.field textarea{width:100%;background:#0c121b;border:1px solid #2a374b;color:var(--text);padding:8px;border-radius:6px}.field textarea{height:125px;font:12px ui-monospace,monospace}.row{display:flex;gap:8px}.row>*{flex:1;min-width:0}.help,.muted{font-size:12px;color:var(--muted)}.tabs{display:flex;gap:5px;padding:8px;border-bottom:1px solid var(--line)}.tab{background:transparent;border-color:transparent;color:var(--muted)}.tab.active{background:#253248;color:white}.hide{display:none!important}.workspace{display:grid;gap:13px;min-width:0}.chart{height:390px}.placeholder{height:100%;display:grid;place-items:center;color:var(--muted);padding:20px;text-align:center}.metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:9px}.metric{padding:12px}.metric small{color:var(--muted)}.value{font-size:20px;font-weight:800;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.positive{color:var(--green)}.negative{color:var(--red)}.lower{display:grid;grid-template-columns:1fr 1fr;gap:13px}.equity{height:220px}.tablewrap{max-height:310px;overflow:auto}table{border-collapse:collapse;width:100%;font-size:11px;white-space:nowrap}th,td{padding:8px;border-bottom:1px solid #202b3b;text-align:right}th{position:sticky;top:0;background:#172131;color:#b3bfd1}th:first-child,td:first-child{text-align:left}.status{font-size:12px;color:var(--muted);margin-top:8px;min-height:17px}.error{color:var(--red)}footer{text-align:center;color:var(--muted);font-size:11px;padding:20px}.condition{display:grid;grid-template-columns:1fr 1fr 1fr 28px;gap:5px;margin-bottom:7px}.condition select{min-width:0;background:#0c121b;color:var(--text);border:1px solid #2a374b;border-radius:5px;padding:6px;font-size:11px}@media(max-width:1050px){.layout{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(3,1fr)}.lower{grid-template-columns:1fr}}@media(max-width:600px){.metrics{grid-template-columns:repeat(2,1fr)}main{padding:8px}.chart{height:320px}}
-</style></head><body>
-<header><div class="brand">FreeTrade <span>Lab</span> <span class="muted">· Local-first backtester</span></div><div><button id="sample">Load demo data</button> <button id="exportTrades" disabled>Export trades CSV</button> <button id="exportEquity" disabled>Export equity CSV</button></div></header>
-<main><div class="layout"><aside class="panel"><div class="head">Backtest setup <span class="muted" id="badge">No data</span></div><div class="tabs"><button class="tab active" data-tab="visual">Visual rules</button><button class="tab" data-tab="code">Code editor</button></div><div class="body">
-<div class="field"><label>Upload MT5 / OHLC CSV</label><input type="file" id="file" accept=".csv,.txt"></div><div class="help">Required: Date+Time or Datetime, Open, High, Low, Close. CSV is processed locally in your browser.</div><hr style="border-color:var(--line);margin:14px 0">
-<section id="visual"><div class="field"><label>Template</label><select id="template"><option value="ema">EMA 20 / 50 trend</option><option value="rsi">RSI reversal</option><option value="breakout">Previous-bar breakout</option><option value="custom">Custom visual conditions</option></select></div><div class="field"><label>Entry conditions (AND)</label><div id="conditions"></div><button id="add">+ Add condition</button></div><div class="row"><div class="field"><label>Longs</label><select id="longs"><option value="yes">Enabled</option><option value="no">Disabled</option></select></div><div class="field"><label>Shorts</label><select id="shorts"><option value="yes">Enabled</option><option value="no">Disabled</option></select></div></div></section>
-<section id="code" class="hide"><div class="field"><label>Strategy DSL</label><textarea id="editor">long = close > ema(close, 20) && ema(close, 20) > ema(close, 50)
-short = close < ema(close, 20) && ema(close, 20) < ema(close, 50)</textarea></div><div class="help">Write long = and short = boolean expressions. Variables: open, high, low, close, volume, prevClose, prevHigh, prevLow. Functions: ema(close, n), sma(close, n), rsi(n), atr(n). Basic arithmetic/comparisons/&&/|| only. Not full Pine Script.</div></section>
-<hr style="border-color:var(--line);margin:14px 0">
-<div class="row"><div class="field"><label>Initial balance ($)</label><input id="balance" type="number" value="10000" min="1"></div><div class="field"><label>Risk / trade (%)</label><input id="risk" type="number" value="1" min=".01" step=".1"></div></div>
-<div class="row"><div class="field"><label>Stop type</label><select id="stopMode"><option value="atr">ATR multiple</option><option value="percent">Percent of price</option><option value="fixed">Fixed price distance</option></select></div><div class="field"><label>Stop value</label><input id="stopVal" type="number" value="2" min=".00001" step=".1"></div></div>
-<div class="row"><div class="field"><label>Target (R, 0 = none)</label><input id="target" type="number" value="2" min="0" step=".1"></div><div class="field"><label>ATR period</label><input id="atrP" type="number" value="14" min="1"></div></div>
-<div class="row"><div class="field"><label>Spread (price units)</label><input id="spread" type="number" value=".30" min="0" step=".01"></div><div class="field"><label>Slippage (price units)</label><input id="slip" type="number" value=".05" min="0" step=".01"></div></div>
-<div class="row"><div class="field"><label>Commission / lot round turn ($)</label><input id="commission" type="number" value="0" min="0" step=".1"></div><div class="field"><label>Contract units / lot</label><input id="contract" type="number" value="100" min=".00001"></div></div>
-<button class="primary" id="run" style="width:100%">Run backtest</button><div class="status" id="status">Load a CSV or demo data to begin.</div></div></aside>
-<div class="workspace"><section class="panel"><div class="head">Candlestick chart <span class="muted" id="range">No data</span></div><div id="price" class="chart"><div class="placeholder">Load historical OHLC data to display candles.</div></div></section>
-<div class="metrics"><div class="metric"><small>Net P/L</small><div class="value" id="net">—</div></div><div class="metric"><small>Profit factor</small><div class="value" id="pf">—</div></div><div class="metric"><small>Win rate</small><div class="value" id="win">—</div></div><div class="metric"><small>Max equity DD</small><div class="value" id="dd">—</div></div><div class="metric"><small>Expectancy</small><div class="value" id="exp">—</div></div><div class="metric"><small>Total trades</small><div class="value" id="count">—</div></div></div>
-<div class="lower"><section class="panel"><div class="head">Equity curve <span class="muted" id="final"></span></div><div id="equity" class="equity"><div class="placeholder">Run a backtest to display equity.</div></div></section><section class="panel"><div class="head">Trade log <span class="muted" id="tradeCount">0 trades</span></div><div class="tablewrap"><table><thead><tr><th>#</th><th>Entry</th><th>Side</th><th>Entry</th><th>SL</th><th>TP</th><th>Exit</th><th>Exit px</th><th>Lots</th><th>P/L</th><th>R</th></tr></thead><tbody id="tbody"><tr><td colspan="11" style="text-align:center">No trades yet</td></tr></tbody></table></div></section></div></div></div></main>
-<footer>FreeTrade Lab MVP · Backtests are simulations, not guarantees. Verify symbol contract specifications and data quality before using results.</footer>
-<script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
+:root{color-scheme:dark;--bg:#0b0e14;--panel:#131722;--line:#2a2e39;--muted:#9aa4b2;--text:#d1d4dc;--accent:#2962ff}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font:13px Arial,Helvetica,sans-serif}
+.app{height:100dvh;display:flex;flex-direction:column}
+.topbar{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:18px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-size:17px;font-weight:700;white-space:nowrap;color:#f0f3fa}.brand span{color:#26a69a}
+.pill{background:#1e222d;border:1px solid var(--line);border-radius:5px;padding:7px 10px;color:var(--text);white-space:nowrap}
+.status{color:#26a69a;font-size:12px;white-space:nowrap}
+.top-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:#1e222d;color:var(--text);border-radius:5px;padding:7px 10px;cursor:pointer}
+.btn:hover{border-color:#6a7485}
+.workspace{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:1px;background:var(--line)}
+.chart-area{min-width:0;min-height:0;background:var(--panel);display:flex;flex-direction:column}
+.chart-head{height:40px;display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.symbol{font-weight:700;font-size:14px;color:#f0f3fa}
+.subtle{color:var(--muted)}
+.widget{flex:1;min-height:0;position:relative}
+.widget iframe{width:100%;height:100%;border:0;display:block}
+.watchlist{background:var(--panel);display:flex;flex-direction:column;min-width:0}
+.watch-head{height:40px;display:flex;align-items:center;padding:0 12px;border-bottom:1px solid var(--line);font-weight:700}
+.watch-note{padding:14px 12px;color:var(--muted);line-height:1.5}
+.watch-link{color:#8aa4ff;text-decoration:none}
+.footer{height:26px;flex:0 0 26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;color:#77808f;background:var(--panel);border-top:1px solid var(--line);font-size:11px}
+@media(max-width:800px){.workspace{grid-template-columns:minmax(0,1fr)}.watchlist{display:none}.topbar{gap:9px;padding:0 9px}.brand{font-size:15px}.status{display:none}.top-actions .optional{display:none}.chart-head{gap:7px;padding:0 8px}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="topbar">
+  <div class="brand">FreeTrade <span>Charts</span></div>
+  <div class="pill">Chart workspace</div>
+  <div class="status">● Charting mode</div>
+  <div class="top-actions">
+    <button class="btn optional" id="symbolBtn" type="button">NZDUSD ▾</button>
+    <button class="btn" id="fullscreenBtn" type="button">⛶ Fullscreen</button>
+  </div>
+</header>
+<main class="workspace" id="workspace">
+  <section class="chart-area">
+    <div class="chart-head">
+      <span class="symbol" id="chartSymbol">NZDUSD</span>
+      <span class="subtle">Forex · FXCM</span>
+      <span class="subtle">TradingView chart</span>
+    </div>
+    <div class="widget" id="chartWidget">
+      <div class="tradingview-widget-container" style="height:100%;width:100%">
+        <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+        <div class="tradingview-widget-copyright" style="height:32px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:11px;color:#787b86;background:#131722">
+          <a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank" style="color:#8aa4ff;text-decoration:none">Chart powered by TradingView</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  <aside class="watchlist">
+    <div class="watch-head">Watchlist <span style="margin-left:auto;color:#7f8795">☰</span></div>
+    <div class="watch-note">Use the chart's symbol selector to switch markets. The embedded chart includes its own symbol search, timeframes, indicators, and drawing tools.</div>
+    <div class="watch-note" style="border-top:1px solid var(--line)">
+      <div style="font-weight:700;color:#d1d4dc;margin-bottom:8px">Quick symbols</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <button class="btn symbol-pick" data-symbol="FX:EURUSD">EURUSD</button>
+        <button class="btn symbol-pick" data-symbol="FX:GBPUSD">GBPUSD</button>
+        <button class="btn symbol-pick" data-symbol="FX:USDJPY">USDJPY</button>
+        <button class="btn symbol-pick" data-symbol="OANDA:XAUUSD">XAUUSD</button>
+        <button class="btn symbol-pick" data-symbol="FX:NZDUSD">NZDUSD</button>
+        <button class="btn symbol-pick" data-symbol="NASDAQ:NDX">NAS100</button>
+      </div>
+    </div>
+    <div class="watch-note subtle" style="margin-top:auto;font-size:11px">Market data, symbol availability, and some features depend on TradingView and its data providers.</div>
+  </aside>
+</main>
+<footer class="footer"><span>FreeTrade Charts · Chart-only workspace</span><span>No backtesting or strategy results</span></footer>
+</div>
 <script>
-(()=>{'use strict';const $=id=>document.getElementById(id);let bars=[],trades=[],eq=[],pc=null,ec=null,cs=null,es=null;
-const fmt=(n,d=2)=>Number.isFinite(n)?n.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
-const status=(s,c='')=>{$('status').textContent=s;$('status').className='status '+c};
-const opts=[['close','Close'],['open','Open'],['high','High'],['low','Low'],['ema20','EMA20'],['ema50','EMA50'],['sma20','SMA20'],['rsi14','RSI14'],['atr14','ATR14'],['prevHigh','Prev High'],['prevLow','Prev Low'],['prevClose','Prev Close']];
-function addCond(a='close',op='>',b='ema20'){let d=document.createElement('div');d.className='condition';let ss=[];for(let k=0;k<3;k++){let s=document.createElement('select');(k===1?['>','<','>=','<=','crosses above','crosses below']:opts.map(x=>x[0])).forEach((v,i)=>{let o=document.createElement('option');o.value=v;o.textContent=k===1?v:opts[i][1];s.append(o)});ss.push(s)}ss[0].value=a;ss[1].value=op;ss[2].value=b;let x=document.createElement('button');x.textContent='×';x.onclick=()=>d.remove();d.append(...ss,x);$('conditions').append(d)}
-function template(v){$('conditions').innerHTML='';if(v==='ema'){addCond('close','>','ema20');addCond('ema20','>','ema50')}else if(v==='rsi'){addCond('rsi14','<','close');$('editor').value='long = rsi(14) < 30\nshort = rsi(14) > 70'}else if(v==='breakout')addCond('close','>','prevHigh');else addCond()}
-addCond();$('add').onclick=()=>addCond();$('template').onchange=e=>template(e.target.value);
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));$('visual').classList.toggle('hide',b.dataset.tab!=='visual');$('code').classList.toggle('hide',b.dataset.tab!=='code')});
-function parseCSV(text){let lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim());if(lines.length<3)throw Error('CSV needs a header and at least two rows.');const line=s=>{let a=[],v='',q=false;for(let i=0;i<s.length;i++){let c=s[i];if(c==='"'){if(q&&s[i+1]==='"'){v+='"';i++}else q=!q}else if(c===','&&!q){a.push(v.trim());v=''}else v+=c}a.push(v.trim());return a};let h=line(lines[0]).map(x=>x.toLowerCase().replace(/[\s_./-]/g,''));const ix=names=>h.findIndex(x=>names.includes(x));let di=ix(['date']),ti=ix(['time']),dt=ix(['datetime','timestamp']),oi=ix(['open','o']),hi=ix(['high','h']),li=ix(['low','l']),ci=ix(['close','c']),vi=ix(['tickvolume','volume','vol']);if([oi,hi,li,ci].some(x=>x<0))throw Error('Could not find Open, High, Low, Close columns.');let out=[];for(let n=1;n<lines.length;n++){let c=line(lines[n]);let ds=di>=0&&ti>=0?c[di]+' '+c[ti]:dt>=0?c[dt]:'';if(!ds)continue;let m=ds.match(/^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2}))?)?$/);let date=m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3],+(m[4]||0),+(m[5]||0),+(m[6]||0))):new Date(ds);if(isNaN(date))continue;let val=i=>Number(String(c[i]||'').replace(/,/g,''));let b={time:Math.floor(date.getTime()/1000),date:date.toISOString(),open:val(oi),high:val(hi),low:val(li),close:val(ci),volume:vi>=0?val(vi):0};if([b.open,b.high,b.low,b.close].every(Number.isFinite)&&b.high>=Math.max(b.open,b.close,b.low)&&b.low<=Math.min(b.open,b.close,b.high))out.push(b)}out.sort((a,b)=>a.time-b.time);let d=[];out.forEach(b=>{if(d.length&&d[d.length-1].time===b.time)d[d.length-1]=b;else d.push(b)});if(d.length<2)throw Error('No valid rows parsed. Use comma-separated CSV with recognizable dates.');return d}
-$('file').onchange=async e=>{try{let f=e.target.files[0];if(!f)return;bars=parseCSV(await f.text());loaded(f.name);status(`Loaded ${bars.length.toLocaleString()} bars.`,'positive')}catch(err){status(err.message,'error')}};
-function loaded(name){$('badge').textContent=bars.length.toLocaleString()+' bars';$('range').textContent=name+' · '+new Date(bars[0].time*1000).toISOString().slice(0,10)+' → '+new Date(bars.at(-1).time*1000).toISOString().slice(0,10);drawPrice()}
-function sma(v,p){let o=Array(v.length).fill(NaN),s=0;for(let i=0;i<v.length;i++){s+=v[i];if(i>=p)s-=v[i-p];if(i>=p-1)o[i]=s/p}return o}
-function ema(v,p){let o=Array(v.length).fill(NaN),k=2/(p+1),x=NaN;for(let i=0;i<v.length;i++){x=Number.isFinite(x)?v[i]*k+x*(1-k):i>=p-1?v.slice(i-p+1,i+1).reduce((a,b)=>a+b,0)/p:NaN;if(Number.isFinite(x))o[i]=x}return o}
-function rsi(v,p=14){let o=Array(v.length).fill(NaN),g=0,l=0;for(let i=1;i<v.length;i++){let d=v[i]-v[i-1];if(i<=p){g+=Math.max(d,0);l+=Math.max(-d,0);if(i===p){g/=p;l/=p;o[i]=l===0?100:100-100/(1+g/l)}}else{g=(g*(p-1)+Math.max(d,0))/p;l=(l*(p-1)+Math.max(-d,0))/p;o[i]=l===0?100:100-100/(1+g/l)}}return o}
-function atr(d,p){let tr=d.map((b,i)=>i?Math.max(b.high-b.low,Math.abs(b.high-d[i-1].close),Math.abs(b.low-d[i-1].close)):b.high-b.low);return ema(tr,p)}
-function enrich(d){let c=d.map(b=>b.close),e20=ema(c,20),e50=ema(c,50),s20=sma(c,20),r=rsi(c,14),a=atr(d,Math.max(1,+$('atrP').value||14));return d.map((b,i)=>({...b,prevClose:i?d[i-1].close:NaN,prevHigh:i?d[i-1].high:NaN,prevLow:i?d[i-1].low:NaN,ema20:e20[i],ema50:e50[i],sma20:s20[i],rsi14:r[i],atr14:a[i]}))}
-function evalExpr(expr,ctx){let s=expr.trim().replace(/\bema\s*\(\s*close\s*,\s*(\d+)\s*\)/gi,(_,p)=>'ema'+p).replace(/\bsma\s*\(\s*close\s*,\s*(\d+)\s*\)/gi,(_,p)=>'sma'+p).replace(/\brsi\s*\(\s*(\d+)\s*\)/gi,(_,p)=>'rsi'+p).replace(/\batr\s*\(\s*(\d+)\s*\)/gi,(_,p)=>'atr'+p);if(/[;{}\[\]`]/.test(s)||/\b(window|document|globalThis|fetch|eval|Function|constructor|prototype|import|while|for|new|this)\b/i.test(s)||!/^[\w\s.+\-*/%<>=!&|(),]+$/.test(s))throw Error('Unsupported/unsafe strategy expression.');let names=[...s.matchAll(/\b[A-Za-z_]\w*\b/g)].map(x=>x[0]);for(let n of names)if(!(n in ctx)&&!['true','false','NaN'].includes(n))throw Error('Unknown variable/indicator: '+n);return !!Function(...Object.keys(ctx),'"use strict";return ('+s+')')(...Object.values(ctx))}
-function signal(d,i){let code=!$('code').classList.contains('hide');if(code){let lines=$('editor').value.split(/\r?\n/).map(x=>x.trim()).filter(x=>x&&!x.startsWith('//')),l=lines.find(x=>/^long\s*=/.test(x)),s=lines.find(x=>/^short\s*=/.test(x));if(!l&&!s)throw Error('Add long = and/or short = expressions.');let ctx={...d[i]};for(let m of $('editor').value.matchAll(/\b(ema|sma)\s*\(\s*close\s*,\s*(\d+)\s*\)/gi)){let p=+m[2],key=m[1].toLowerCase()+p;ctx[key]=(m[1].toLowerCase()==='ema'?ema(d.slice(0,i+1).map(x=>x.close),p):sma(d.slice(0,i+1).map(x=>x.close),p)).at(-1)}for(let m of $('editor').value.matchAll(/\b(rsi|atr)\s*\(\s*(\d+)\s*\)/gi)){let p=+m[2],key=m[1].toLowerCase()+p;ctx[key]=(m[1].toLowerCase()==='rsi'?rsi(d.slice(0,i+1).map(x=>x.close),p):atr(d.slice(0,i+1),p)).at(-1)}return{long:l?evalExpr(l.replace(/^long\s*=/,''),ctx):false,short:s?evalExpr(s.replace(/^short\s*=/,''),ctx):false}}
-let rows=[...$('conditions').querySelectorAll('.condition')];if(!rows.length)return{long:false,short:false};let passL=true,passS=true;for(let row of rows){let [a,o,b]=row.querySelectorAll('select'),av=d[i][a.value],bv=d[i][b.value],op=o.value,okL=op==='>'?av>bv:op==='<'?av<bv:op==='>='?av>=bv:op==='<='?av<=bv:op==='crosses above'?i>0&&d[i-1][a.value]<=d[i-1][b.value]&&av>bv:i>0&&d[i-1][a.value]>=d[i-1][b.value]&&av<bv,rev=op==='>'?'<':op==='<'?'>':op==='>='?'<=':op==='<='?'>=':op==='crosses above'?'crosses below':'crosses above',okS=rev==='>'?av>bv:rev==='<'?av<bv:rev==='>='?av>=bv:rev==='<='?av<=bv:rev==='crosses above'?i>0&&d[i-1][a.value]<=d[i-1][b.value]&&av>bv:i>0&&d[i-1][a.value]>=d[i-1][b.value]&&av<bv;passL=passL&&okL;passS=passS&&okS}return{long:passL&&$('longs').value==='yes',short:passS&&$('shorts').value==='yes'}}
-function backtest(){if(bars.length<60)throw Error('Load at least 60 bars.');let d=enrich(bars),initial=+$('balance').value,risk=+$('risk').value/100,spread=Math.max(0,+$('spread').value),slip=Math.max(0,+$('slip').value),comm=Math.max(0,+$('commission').value),contract=Math.max(.000001,+$('contract').value),target=Math.max(0,+$('target').value),sv=Math.max(.000001,+$('stopVal').value),balance=initial,position=null,ts=[],eq=[{time:d[0].time,value:initial}],gp=0,gl=0,w=0,l=0;if(initial<=0||risk<=0)throw Error('Initial balance and risk must be positive.');
-function closePos(i,raw,reason){let p=position,exit=p.side==='long'?raw-slip:raw+slip,pnl=(exit-p.entry)*(p.side==='long'?1:-1)*p.lots*contract-comm*p.lots-(spread/2)*p.lots*contract;balance+=pnl;if(pnl>=0){w++;gp+=pnl}else{l++;gl+=Math.abs(pnl)}ts.push({...p,exitTime:d[i].date,exitTimeSec:d[i].time,exit,pnl,r:pnl/p.riskMoney,reason,balanceAfter:balance});eq.push({time:d[i].time,value:balance});position=null}
-for(let i=55;i<d.length;i++){let b=d[i];if(position){if(position.side==='long'){if(b.open<=position.sl)closePos(i,b.open,'SL gap');else if(position.tp>b.open&&b.open>=position.tp)closePos(i,b.open,'TP gap');else if(b.low<=position.sl)closePos(i,position.sl,'SL');else if(position.tp>b.open&&b.high>=position.tp)closePos(i,position.tp,'TP')}else{if(b.open>=position.sl)closePos(i,b.open,'SL gap');else if(position.tp<b.open&&b.open<=position.tp)closePos(i,b.open,'TP gap');else if(b.high>=position.sl)closePos(i,position.sl,'SL');else if(position.tp<b.open&&b.low<=position.tp)closePos(i,position.tp,'TP')}if(position)continue}
-let sig=signal(d,i);if(sig.long&&sig.short)continue;if(!sig.long&&!sig.short)continue;let side=sig.long?'long':'short',dist=$('stopMode').value==='atr'?b.atr14*sv:$('stopMode').value==='percent'?b.close*sv/100:sv;if(!Number.isFinite(dist)||dist<=0)continue;let entry=side==='long'?b.close+spread/2+slip:b.close-spread/2-slip,sl=side==='long'?entry-dist:entry+dist,tp=target>0?(side==='long'?entry+dist*target:entry-dist*target):(side==='long'?Infinity:-Infinity),riskMoney=balance*risk,lots=riskMoney/(dist*contract);if(!Number.isFinite(lots)||lots<=0)continue;position={side,entry,sl,tp,lots,riskMoney,entryTime:b.date,entryTimeSec:b.time}}
-if(position)closePos(d.length-1,d.at(-1).close,'End of data');let peak=initial,dd=0;for(let e of eq){peak=Math.max(peak,e.value);dd=Math.max(dd,(peak-e.value)/peak)}let net=balance-initial,pf=gl?gp/gl:gp?Infinity:0;trades=ts;window._eq=eq;render({initial,balance,net,pf,win:ts.length?w/ts.length*100:0,dd,exp:ts.length?net/ts.length:0,n:ts.length,w,l});}
-function render(m){const set=(id,v,c='')=>{$(id).textContent=v;$(id).className='value '+c};set('net',(m.net>=0?'+':'')+'$'+fmt(m.net),m.net>=0?'positive':'negative');set('pf',Number.isFinite(m.pf)?fmt(m.pf):'∞',m.pf>=1?'positive':'negative');set('win',fmt(m.win,1)+'%',m.win>=50?'positive':'');set('dd',fmt(m.dd*100)+'%','negative');set('exp',(m.exp>=0?'+':'')+'$'+fmt(m.exp),m.exp>=0?'positive':'negative');set('count',m.n);$('tradeCount').textContent=m.n+' trades';$('final').textContent='Final $'+fmt(m.balance)+' · '+m.w+' wins / '+m.l+' losses';$('tbody').innerHTML=trades.length?trades.slice().reverse().map((t,j)=>`<tr><td>${trades.length-j}</td><td>${t.entryTime.replace('T',' ').slice(0,16)}</td><td class="${t.side==='long'?'positive':'negative'}">${t.side.toUpperCase()}</td><td>${fmt(t.entry,3)}</td><td>${fmt(t.sl,3)}</td><td>${Number.isFinite(t.tp)?fmt(t.tp,3):'—'}</td><td>${t.exitTime.replace('T',' ').slice(0,16)}</td><td>${fmt(t.exit,3)}</td><td>${fmt(t.lots,3)}</td><td class="${t.pnl>=0?'positive':'negative'}">${fmt(t.pnl)}</td><td>${fmt(t.r)}R</td></tr>`).join(''):'<tr><td colspan="11">No trades generated. Check rules.</td></tr>';$('exportTrades').disabled=!trades.length;$('exportEquity').disabled=!window._eq?.length;drawPrice();drawEquity()}
-function drawPrice(){if(pc)pc.remove();let el=$('price');if(!bars.length){el.innerHTML='<div class="placeholder">Load data.</div>';return}if(!window.LightweightCharts){el.innerHTML='<div class="placeholder">Chart CDN did not load; check internet and refresh.</div>';return}el.innerHTML='';pc=LightweightCharts.createChart(el,{width:el.clientWidth,height:el.clientHeight,layout:{background:{color:'#111722'},textColor:'#9aa9bd'},grid:{vertLines:{color:'#1d2838'},horzLines:{color:'#1d2838'}},timeScale:{timeVisible:true},rightPriceScale:{borderColor:'#2a374b'}});cs=pc.addCandlestickSeries({upColor:'#20c997',downColor:'#ff647c',borderUpColor:'#20c997',borderDownColor:'#ff647c',wickUpColor:'#20c997',wickDownColor:'#ff647c'});cs.setData(bars.map(b=>({time:b.time,open:b.open,high:b.high,low:b.low,close:b.close})));if(trades.length){let marks=[];trades.forEach(t=>{marks.push({time:t.entryTimeSec,position:t.side==='long'?'belowBar':'aboveBar',color:t.side==='long'?'#20c997':'#ff647c',shape:t.side==='long'?'arrowUp':'arrowDown',text:t.side==='long'?'BUY':'SELL'});marks.push({time:t.exitTimeSec,position:t.pnl>=0?'aboveBar':'belowBar',color:t.pnl>=0?'#6ea8fe':'#ff647c',shape:'circle',text:t.reason})});cs.setMarkers(marks.sort((a,b)=>a.time-b.time))}pc.timeScale().fitContent()}
-function drawEquity(){if(ec)ec.remove();let el=$('equity'),data=window._eq||[];if(!data.length){el.innerHTML='<div class="placeholder">Run a backtest.</div>';return}el.innerHTML='';ec=LightweightCharts.createChart(el,{width:el.clientWidth,height:el.clientHeight,layout:{background:{color:'#111722'},textColor:'#9aa9bd'},grid:{vertLines:{color:'#1d2838'},horzLines:{color:'#1d2838'}},timeScale:{timeVisible:true}});es=ec.addAreaSeries({lineColor:'#20c997',topColor:'rgba(32,201,151,.25)',bottomColor:'rgba(32,201,151,.01)'});let clean=[];data.forEach(x=>{if(clean.length&&clean.at(-1).time===x.time)clean[clean.length-1]=x;else clean.push(x)});es.setData(clean);ec.timeScale().fitContent()}
-$('run').onclick=()=>{try{status('Running…');backtest();status('Finished: '+trades.length+' closed trades.')}catch(e){console.error(e);status(e.message||'Backtest failed.','error')}};
-const csvCell=v=>{let s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};function download(name,s){let u=URL.createObjectURL(new Blob([s],{type:'text/csv'})),a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}
-$('exportTrades').onclick=()=>{let keys=['side','entryTime','entry','sl','tp','exitTime','exit','lots','pnl','r','reason','balanceAfter'];download('freetrade-trades.csv',[keys.join(','),...trades.map(t=>keys.map(k=>csvCell(t[k])).join(','))].join('\n'))};$('exportEquity').onclick=()=>download('freetrade-equity.csv',['time,equity',...window._eq.map(x=>new Date(x.time*1000).toISOString()+','+x.value)].join('\n'));
-$('sample').onclick=()=>{let seed=9182,r=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296},p=2000;bars=[];let start=Date.UTC(2025,0,1)/1000;for(let i=0;i<1800;i++){let o=p,c=Math.max(1,o+(r()-.505)*3.2+Math.sin(i/90)*.15),h=Math.max(o,c)+r()*1.1,l=Math.min(o,c)-r()*1.1;p=c;let time=start+i*900;bars.push({time,date:new Date(time*1000).toISOString(),open:o,high:h,low:l,close:c,volume:100+r()*1000})}loaded('Synthetic demo data');status('Loaded fake demo candles to test the interface; not real market data.')};
-window.addEventListener('resize',()=>{if(pc)pc.applyOptions({width:$('price').clientWidth});if(ec)ec.applyOptions({width:$('equity').clientWidth})});
+(function(){
+  let currentSymbol='FX:NZDUSD';
+  function loadChart(symbol){
+    currentSymbol=symbol;
+    const pretty=symbol.split(':').pop();
+    document.getElementById('chartSymbol').textContent=pretty;
+    document.getElementById('symbolBtn').textContent=pretty+' ▾';
+    const container=document.getElementById('chartWidget');
+    container.innerHTML='<div class="tradingview-widget-container" style="height:100%;width:100%"><div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div><div class="tradingview-widget-copyright" style="height:32px;display:flex;align-items:center;justify-content:flex-end;padding:0 10px;font-size:11px;color:#787b86;background:#131722"><a href="https://www.tradingview.com/" rel="noopener nofollow" target="_blank" style="color:#8aa4ff;text-decoration:none">Chart powered by TradingView</a></div></div>';
+    const script=document.createElement('script');
+    script.src='https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
+    script.async=true;
+    script.type='text/javascript';
+    script.innerHTML=JSON.stringify({
+      autosize:true,symbol:symbol,interval:'3',timezone:'Asia/Kolkata',theme:'dark',style:'1',locale:'en',
+      backgroundColor:'#131722',gridColor:'rgba(42,46,57,0.65)',hide_top_toolbar:false,hide_legend:false,
+      allow_symbol_change:true,save_image:true,calendar:false,withdateranges:true,details:false,
+      hotlist:false,show_popup_button:true,studies:[],support_host:'https://www.tradingview.com'
+    });
+    container.querySelector('.tradingview-widget-container').appendChild(script);
+  }
+  document.querySelectorAll('.symbol-pick').forEach(function(btn){btn.addEventListener('click',function(){loadChart(btn.dataset.symbol)})});
+  document.getElementById('symbolBtn').addEventListener('click',function(){loadChart(currentSymbol==='FX:NZDUSD'?'FX:EURUSD':'FX:NZDUSD')});
+  document.getElementById('fullscreenBtn').addEventListener('click',async function(){
+    const target=document.getElementById('workspace');
+    try{if(!document.fullscreenElement){await target.requestFullscreen()}else{await document.exitFullscreen()}}catch(e){}
+  });
+  loadChart(currentSymbol);
 })();
-</script></body></html>
+</script>
+</body>
+</html>
