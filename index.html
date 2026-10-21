@@ -70,7 +70,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   const find=names=>headers.findIndex(h=>names.includes(h));
   let di=find(['date','day','datetime','time']);
   let ti=find(['time','hour']);
-  let oi=find(['open','o']),hi=find(['high','h'),li=find(['low','l']),ci=find(['close','c','last']);
+  let oi=find(['open','o']),hi=find(['high','h']),li=find(['low','l']),ci=find(['close','c','last']);
   let headerLooksValid=oi>=0&&hi>=0&&li>=0&&ci>=0&&di>=0;
   let start=1;
   if(!headerLooksValid){headers=['date','time','open','high','low','close','tickvolume','volume','spread'];di=0;ti=1;oi=2;hi=3;li=4;ci=5;start=0}
