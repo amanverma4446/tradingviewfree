@@ -108,7 +108,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   $('highLow').textContent=highLowVisible?'Hide 3:50 H/L':'3:50 High/Low';
   $('highLow').style.borderColor=highLowVisible?'#26a69a':'';
   updateHighLowMarkers();
-  $('ohlc').textContent=highLowVisible?'Showing the high and low of each 3:50 AM 3-minute candle in '+$('chartTimezone').selectedOptions[0].text+'.':'5:30 candle levels hidden.';
+  $('ohlc').textContent=highLowVisible?(highLowLevels.length?'Showing '+highLowLevels.length+' day(s) of 3:50 AM 3-minute candle levels in '+$('chartTimezone').selectedOptions[0].text+'. First level: H '+highLowLevels[0].high.toFixed(2)+' / L '+highLowLevels[0].low.toFixed(2):'No 3:48–3:51 AM candle found in imported data for timezone '+$('chartTimezone').selectedOptions[0].text+'. Check CSV/broker time offset.'):'3:50 candle levels hidden.';
  });
 
  let sourceBars=[],loadedFileName='',currentBars=[],isLight=false,indicatorSeries={};
@@ -361,8 +361,6 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   try{db=await openHistoryDB();await new Promise((resolve,reject)=>{const tx=db.transaction(['chunks','meta'],'readwrite');tx.objectStore('chunks').clear();tx.objectStore('meta').clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});$('savedStatus').textContent='Saved data cleared';}
   catch(err){alert('Could not clear saved history: '+err.message)}finally{if(db)db.close()}
  });
- restoreHistoryLocally();
-
  // TradingView-style date jump and custom range calendar.
  const pad2=n=>String(n).padStart(2,'0');
  const isoDate=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
@@ -461,6 +459,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  $('timeframe').addEventListener('change',render);
  $('fit').addEventListener('click',()=>chart.timeScale().fitContent());
  $('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.querySelector('.main').requestFullscreen();else await document.exitFullscreen()}catch(e){}});
+ restoreHistoryLocally();
 
  let activeTool='cursor',pendingPoint=null,drawings=[],dragState=null;
  const drawLayer=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -505,13 +504,16 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
    }
   });
   highLowLevels.forEach(level=>{
-   const x1=chart.timeScale().timeToCoordinate(level.time),x2=chart.timeScale().timeToCoordinate(level.end);
-   if(x1===null||x2===null)return;
+   const x1=chart.timeScale().timeToCoordinate(level.time);
+   if(x1===null)return;
+   const endCoordinate=chart.timeScale().timeToCoordinate(level.end);
+   const x2=endCoordinate===null?Math.max(x1+1,w-66):Math.min(endCoordinate,w-66);
+   if(x2<=x1)return;
    [['high',level.high,'#ef5350','3:50 H'],['low',level.low,'#26a69a','3:50 L']].forEach(([kind,price,color,label])=>{
     const y=candles.priceToCoordinate(price);if(y===null)return;
-    const line=svgEl('line',{x1,y1:y,x2,y2:y,stroke:color,'stroke-width':1.5,'stroke-dasharray':'5 3','pointer-events':'none'});
+    const line=svgEl('line',{x1,y1:y,x2,y2:y,stroke:color,'stroke-width':2,'stroke-dasharray':'6 3','pointer-events':'none'});
     drawLayer.appendChild(line);
-    if(x2-x1>70){const txt=svgEl('text',{x:x1+4,y:y-4,fill:color,'font-size':10,'pointer-events':'none'});txt.textContent=label+' '+Number(price).toFixed(2);drawLayer.appendChild(txt)}
+    const txt=svgEl('text',{x:Math.min(x1+5,x2-95),y:y-5,fill:color,'font-size':11,'font-weight':'bold','pointer-events':'none'});txt.textContent=label+' '+Number(price).toFixed(2);drawLayer.appendChild(txt);
    });
   });
  }
