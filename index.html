@@ -79,7 +79,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);c
 </div>
 <script>
 (function(){
-  let currentSymbol='FX:NZDUSD';
+  let currentSymbol='OANDA:XAUUSD';
   function loadChart(symbol){
     currentSymbol=symbol;
     const pretty=symbol.split(':').pop();
@@ -92,7 +92,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);c
     script.async=true;
     script.type='text/javascript';
     script.innerHTML=JSON.stringify({
-      autosize:true,symbol:symbol,interval:'3',timezone:'Asia/Kolkata',theme:'dark',style:'1',locale:'en',
+      autosize:true,symbol:symbol,interval:'3',range:'5D',timezone:'Asia/Kolkata',theme:'dark',style:'1',locale:'en',
       backgroundColor:'#131722',gridColor:'rgba(42,46,57,0.65)',hide_top_toolbar:false,hide_legend:false,
       allow_symbol_change:true,save_image:true,calendar:false,withdateranges:true,details:false,
       hotlist:false,show_popup_button:true,studies:[],support_host:'https://www.tradingview.com'
@@ -100,7 +100,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);c
     container.querySelector('.tradingview-widget-container').appendChild(script);
   }
   document.querySelectorAll('.symbol-pick').forEach(function(btn){btn.addEventListener('click',function(){loadChart(btn.dataset.symbol)})});
-  document.getElementById('symbolBtn').addEventListener('click',function(){loadChart(currentSymbol==='FX:NZDUSD'?'FX:EURUSD':'FX:NZDUSD')});
+  document.getElementById('symbolBtn').addEventListener('click',function(){loadChart(currentSymbol==='OANDA:XAUUSD'?'FX:EURUSD':'OANDA:XAUUSD')});
   document.getElementById('fullscreenBtn').addEventListener('click',async function(){
     const target=document.getElementById('workspace');
     try{if(!document.fullscreenElement){await target.requestFullscreen()}else{await document.exitFullscreen()}}catch(e){}
