@@ -27,6 +27,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
 </header>
 <main class="main">
  <div class="charthead"><span class="symbol" id="symbol">XAUUSDx</span><span class="ohlc" id="ohlc">Import your broker's historical candles to begin</span><span class="status" id="range" style="margin-left:auto">No data loaded</span></div>
+ <div class="drawtools"><span style="color:var(--muted);font-size:11px;margin-right:4px">Draw</span><button data-tool="cursor" class="active">↖ Cursor</button><button data-tool="trend">╱ Trend line</button><button data-tool="horizontal">― Horizontal line</button><button id="clearDrawings">Clear drawings</button></div>
  <div class="chart" id="chart"><div class="empty" id="empty"><div class="empty-inner"><strong>Load one year of your XAUUSDx history</strong><br>Export historical bars from your MT5 broker, then click <b>Import MT5 CSV</b>.<br>For a 3-minute chart, import M3 bars or M1 bars (M1 data will be aggregated to M3).<br><br><span style="font-size:12px">Your file is processed locally in this browser and is not uploaded to a server.</span></div></div></div>
 </main>
 <footer class="footer"><span id="count">Chart-only workspace · no backtesting</span><span>Data source: your imported MT5 broker file</span></footer>
@@ -202,6 +203,33 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  $('timeframe').addEventListener('change',render);
  $('fit').addEventListener('click',()=>chart.timeScale().fitContent());
  $('fullscreen').addEventListener('click',async()=>{try{if(!document.fullscreenElement)await document.querySelector('.main').requestFullscreen();else await document.exitFullscreen()}catch(e){}});
+
+ let activeTool='cursor',pendingPoint=null,drawingSeries=[],horizontalLines=[];
+ document.querySelectorAll('[data-tool]').forEach(btn=>btn.addEventListener('click',()=>{
+  activeTool=btn.dataset.tool;pendingPoint=null;
+  document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b===btn));
+  $('ohlc').textContent=activeTool==='cursor'?'Cursor mode':activeTool==='trend'?'Trend line: click two points on the chart':'Horizontal line: click a price level';
+ }));
+ chart.subscribeClick(param=>{
+  if(activeTool==='cursor'||!param.point||!param.time)return;
+  const price=candles.coordinateToPrice(param.point.y);
+  if(price===null||!Number.isFinite(price))return;
+  const point={time:param.time,value:price};
+  if(activeTool==='horizontal'){
+   const line=candles.createPriceLine({price:price,color:'#f7c948',lineWidth:2,lineStyle:LightweightCharts.LineStyle.Solid,axisLabelVisible:true,title:'H-Line'});
+   horizontalLines.push(line);return;
+  }
+  if(!pendingPoint){pendingPoint=point;$('ohlc').textContent='Trend line: choose the second point';return}
+  let points=[pendingPoint,point].sort((a,b)=>a.time-b.time);
+  if(points[0].time===points[1].time){pendingPoint=null;return}
+  const series=chart.addSeries(LightweightCharts.LineSeries,{color:'#f7c948',lineWidth:2,priceLineVisible:false,lastValueVisible:false,crosshairMarkerVisible:false,title:'Trend line'});
+  series.setData(points);drawingSeries.push(series);pendingPoint=null;$('ohlc').textContent='Trend line added';
+ });
+ $('clearDrawings').addEventListener('click',()=>{
+  drawingSeries.forEach(s=>chart.removeSeries(s));drawingSeries=[];
+  horizontalLines.forEach(l=>{try{candles.removePriceLine(l)}catch(e){}});horizontalLines=[];pendingPoint=null;
+ });
+
  chart.subscribeCrosshairMove(param=>{
   if(!param||!param.time)return;const d=param.seriesData.get(candles);if(d)$('ohlc').textContent='O '+d.open+'   H '+d.high+'   L '+d.low+'   C '+d.close;
  });
