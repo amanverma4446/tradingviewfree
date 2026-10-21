@@ -21,6 +21,7 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  <div class="brand">FreeTrade <span>Charts</span></div><div class="tag">MT5 broker history</div>
  <div class="topright">
   <label class="filebtn" for="csvFile">⬆ Import MT5 CSV</label><input id="csvFile" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" hidden>
+  <button id="goldFeedOpen" title="Connect a free OANDA gold feed">Live Gold Feed</button>
   <label for="timeframe">Timeframe</label><select id="timeframe"><option value="1">1 minute</option><option value="3" selected>3 minutes</option><option value="5">5 minutes</option><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="D">1 day</option></select>
   <label for="chartTimezone">Timezone</label><select id="chartTimezone" title="Timezone for chart labels and 5:30 candle levels"><option value="Asia/Kolkata" selected>IST (UTC+5:30)</option><option value="UTC">UTC</option><option value="Europe/London">London</option><option value="Europe/Helsinki">Helsinki</option><option value="Asia/Dubai">Dubai</option><option value="Asia/Singapore">Singapore</option><option value="America/New_York">New York</option><option value="local">Local</option></select>
   <button id="highLow" title="Show or hide the 3:50 AM 3-minute candle high and low">3:50 High/Low</button><button id="pine" title="Open the Pine-style indicator editor">Pine Script</button><button id="savedStatus" title="History is saved in this browser">Save: automatic</button><button id="clearSaved">Clear saved data</button><button id="fit" disabled>Fit data</button><button id="fullscreen">⛶</button>
@@ -43,6 +44,23 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  </section>
 </div>
 
+
+<div id="goldFeedModal" style="display:none;position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.72);align-items:center;justify-content:center;padding:16px">
+ <section style="width:min(520px,100%);max-height:90vh;overflow:auto;background:#131722;border:1px solid #3a4050;border-radius:10px;padding:18px;box-shadow:0 16px 50px #0009">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><b style="font-size:16px">Free live XAU/USD feed</b><button id="goldFeedClose" style="margin-left:auto">Close ✕</button></div>
+  <p style="color:#9aa4b2;line-height:1.5">Connect an OANDA v20 account to download two years of 1-minute gold candles and then update completed candles automatically. A free demo account may work if XAU_USD is available in your region/account.</p>
+  <label style="display:block;margin:12px 0 6px;color:#c5cad3">Account type</label>
+  <select id="goldFeedEnv" style="width:100%"><option value="practice">OANDA demo / practice</option><option value="live">OANDA live account</option></select>
+  <label style="display:block;margin:12px 0 6px;color:#c5cad3">OANDA account ID</label>
+  <input id="goldFeedAccount" autocomplete="off" spellcheck="false" placeholder="e.g. 101-001-..." style="width:100%;padding:10px;background:#0b0e14;color:#d1d4dc;border:1px solid #3a4050;border-radius:6px">
+  <label style="display:block;margin:12px 0 6px;color:#c5cad3">Personal access token</label>
+  <input id="goldFeedToken" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your OANDA API token" style="width:100%;padding:10px;background:#0b0e14;color:#d1d4dc;border:1px solid #3a4050;border-radius:6px">
+  <label style="display:flex;gap:8px;align-items:flex-start;margin:12px 0;color:#c5cad3;font-size:12px;line-height:1.5"><input id="goldFeedRemember" type="checkbox" style="margin-top:2px"> Keep credentials for this browser tab session (not permanently saved).</label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button id="goldFeedDownload">Download 2 years + start live updates</button><button id="goldFeedStop" disabled>Stop live updates</button></div>
+  <div id="goldFeedMessage" style="margin-top:12px;color:#9aa4b2;font-size:12px;line-height:1.5">No connection. Your historical candles will be saved locally in this browser.</div>
+  <p style="color:#7f8998;font-size:11px;line-height:1.5;margin-bottom:0">Security: the token is sent from this browser directly to OANDA. Do not use this on a shared computer. This is a chart-data connection only; it cannot place trades. OANDA access and XAU_USD availability depend on account eligibility and regional terms.</p>
+ </section>
+</div>
 
 <div id="gotoModal" style="display:none;position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.38);align-items:center;justify-content:center;padding:14px;color:#202124">
  <section style="width:min(340px,100%);background:#fff;border-radius:9px;box-shadow:0 8px 28px #0003;overflow:hidden;font:14px Arial,sans-serif;color:#202124">
@@ -361,6 +379,132 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   try{db=await openHistoryDB();await new Promise((resolve,reject)=>{const tx=db.transaction(['chunks','meta'],'readwrite');tx.objectStore('chunks').clear();tx.objectStore('meta').clear();tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});$('savedStatus').textContent='Saved data cleared';}
   catch(err){alert('Could not clear saved history: '+err.message)}finally{if(db)db.close()}
  });
+ // OANDA gold feed: one-time M1 history download, local persistence, then live polling.
+ let goldFeedTimer=null,goldFeedBusy=false,goldFeedLastPersist=0,goldFeedCfg=null;
+ const goldFeedEl=id=>document.getElementById(id);
+ function goldFeedShow(open){goldFeedEl('goldFeedModal').style.display=open?'flex':'none'}
+ goldFeedEl('goldFeedOpen').addEventListener('click',()=>{
+  const cfg=sessionStorage.getItem('ftc_oanda_cfg');
+  if(cfg){try{const c=JSON.parse(cfg);goldFeedEl('goldFeedAccount').value=c.account||'';goldFeedEl('goldFeedToken').value=c.token||'';goldFeedEl('goldFeedEnv').value=c.env||'practice';goldFeedEl('goldFeedRemember').checked=true}catch(e){}}
+  goldFeedShow(true);
+ });
+ goldFeedEl('goldFeedClose').addEventListener('click',()=>goldFeedShow(false));
+ function goldFeedBase(){return goldFeedCfg.env==='live'?'https://api-fxtrade.oanda.com':'https://api-fxpractice.oanda.com'}
+ async function goldFeedFetch(from,count){
+  const url=new URL(goldFeedBase()+'/v3/accounts/'+encodeURIComponent(goldFeedCfg.account)+'/instruments/XAU_USD/candles');
+  url.searchParams.set('granularity','M1');url.searchParams.set('price','M');url.searchParams.set('smooth','false');
+  if(from){url.searchParams.set('from',new Date(from*1000).toISOString());url.searchParams.set('count',String(count||5000));}
+  else {url.searchParams.set('count',String(count||3));}
+  const res=await fetch(url.toString(),{headers:{Authorization:'Bearer '+goldFeedCfg.token,Accept:'application/json'}});
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok)throw new Error(body.errorMessage||body.message||('OANDA returned HTTP '+res.status));
+  if(!Array.isArray(body.candles))throw new Error('OANDA response did not contain candles. Check account and XAU_USD availability.');
+  return body.candles.map(c=>({time:Math.floor(Date.parse(c.time)/1000),open:Number(c.mid&&c.mid.o),high:Number(c.mid&&c.mid.h),low:Number(c.mid&&c.mid.l),close:Number(c.mid&&c.mid.c),complete:!!c.complete}))
+   .filter(b=>Number.isFinite(b.time)&&[b.open,b.high,b.low,b.close].every(Number.isFinite));
+ }
+ async function goldFeedIncrementalSave(){
+  if(!sourceBars.length)return;
+  const db=await openHistoryDB();
+  try{
+   const meta=await new Promise((resolve,reject)=>{const tx=db.transaction('meta','readonly'),r=tx.objectStore('meta').get('current');r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+   if(!meta||!meta.chunks)return;
+   const last=sourceBars[sourceBars.length-1];
+   let chunkIndex=meta.chunks-1;
+   let chunk=await new Promise((resolve,reject)=>{const tx=db.transaction('chunks','readonly'),r=tx.objectStore('chunks').get('bars_'+chunkIndex);r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)});
+   let arr=chunk&&Array.isArray(chunk.bars)?chunk.bars:[];
+   if(arr.length&&arr[arr.length-1].time===last.time)arr[arr.length-1]=last;
+   else if(arr.length<CHUNK_SIZE)arr.push(last);
+   else {chunkIndex=meta.chunks;arr=[last];meta.chunks=meta.chunks+1}
+   await new Promise((resolve,reject)=>{const tx=db.transaction('chunks','readwrite');tx.objectStore('chunks').put({id:'bars_'+chunkIndex,bars:arr});tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+   meta.count=sourceBars.length;meta.lastTime=last.time;meta.firstTime=sourceBars[0].time;meta.fileName='OANDA XAU_USD M1';meta.savedAt=Date.now();
+   await new Promise((resolve,reject)=>{const tx=db.transaction('meta','readwrite');tx.objectStore('meta').put(meta);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)});
+  }finally{db.close()}
+ }
+ function goldFeedUpsert(bars){
+  const complete=bars.filter(b=>b.complete).map(({complete,...b})=>b);
+  if(!complete.length)return 0;
+  let added=0;
+  for(const b of complete){
+   const n=sourceBars.length;
+   if(n&&sourceBars[n-1].time===b.time)sourceBars[n-1]=b;
+   else if(!n||b.time>sourceBars[n-1].time){sourceBars.push(b);added++}
+   else {let lo=0,hi=n-1;while(lo<=hi){const mid=(lo+hi)>>1;if(sourceBars[mid].time===b.time){sourceBars[mid]=b;break}else if(sourceBars[mid].time<b.time)lo=mid+1;else hi=mid-1}if(lo>hi&&lo<n)sourceBars.splice(lo,0,b)}
+  }
+  return added;
+ }
+ async function goldFeedLiveTick(){
+  if(goldFeedBusy||!goldFeedCfg)return;goldFeedBusy=true;
+  try{
+   const bars=await goldFeedFetch(null,3);const before=sourceBars.length;goldFeedUpsert(bars);
+   if(sourceBars.length){
+    const last=sourceBars[sourceBars.length-1],tf=$('timeframe').value;
+    if(tf==='1'){
+     if(currentBars.length&&currentBars[currentBars.length-1].time===last.time)currentBars[currentBars.length-1]=last;
+     else if(!currentBars.length||last.time>currentBars[currentBars.length-1].time)currentBars.push(last);
+     candles.update(last);
+    }else{
+     const bucket=tf==='D'?Math.floor(last.time/86400)*86400:Math.floor(last.time/(Number(tf)*60))*Number(tf)*60;
+     const group=aggregate(sourceBars.slice(Math.max(0,sourceBars.length-Number(tf==='D'?1440:tf)-3)),tf).slice(-1)[0];
+     if(group){
+      if(currentBars.length&&currentBars[currentBars.length-1].time===group.time)currentBars[currentBars.length-1]=group;
+      else if(!currentBars.length||group.time>currentBars[currentBars.length-1].time)currentBars.push(group);
+      candles.update(group);
+     }
+    }
+    $('range').textContent=fmtDate(sourceBars[0].time)+' — '+fmtDate(last.time)+' · LIVE';
+    $('symbol').textContent='XAU_USD';
+    $('ohlc').textContent='OANDA mid-price · last completed 1-minute candle';
+    $('count').textContent=sourceBars.length.toLocaleString()+' source candles · live';
+    if(Date.now()-goldFeedLastPersist>60000){await goldFeedIncrementalSave();goldFeedLastPersist=Date.now();$('savedStatus').textContent='Saved on this device'}
+   }
+   goldFeedEl('goldFeedMessage').textContent='Live · last update '+new Date().toLocaleTimeString()+' · '+sourceBars.length.toLocaleString()+' one-minute candles saved locally.';
+  }catch(err){goldFeedEl('goldFeedMessage').textContent='Live update failed: '+err.message+' · will retry automatically.'}
+  finally{goldFeedBusy=false}
+ }
+ async function goldFeedStart(){
+  if(goldFeedBusy)return;
+  const account=goldFeedEl('goldFeedAccount').value.trim(),token=goldFeedEl('goldFeedToken').value.trim(),env=goldFeedEl('goldFeedEnv').value;
+  if(!account||!token){goldFeedEl('goldFeedMessage').textContent='Enter your OANDA account ID and API token first.';return}
+  goldFeedCfg={account,token,env};
+  if(goldFeedEl('goldFeedRemember').checked)sessionStorage.setItem('ftc_oanda_cfg',JSON.stringify(goldFeedCfg));else sessionStorage.removeItem('ftc_oanda_cfg');
+  goldFeedEl('goldFeedDownload').disabled=true;goldFeedEl('goldFeedMessage').textContent='Testing OANDA access and XAU_USD instrument…';
+  try{
+   const test=await goldFeedFetch(null,2);
+   if(!test.length)throw new Error('No XAU_USD candles returned for this account.');
+   if(!sourceBars.length||!loadedFileName.startsWith('OANDA XAU_USD')){
+    const start=Math.floor((Date.now()-2*365.25*86400000)/1000);
+    let cursor=start;const all=[];let page=0;const maxPages=250;
+    while(cursor<Math.floor(Date.now()/1000)&&page<maxPages){
+     const pageBars=await goldFeedFetch(cursor,5000);
+     if(!pageBars.length)break;
+     const valid=pageBars.filter(b=>b.time>=cursor&&b.time<=Math.floor(Date.now()/1000));
+     if(!valid.length)break;
+     for(const b of valid){const clean={time:b.time,open:b.open,high:b.high,low:b.low,close:b.close};if(!all.length||clean.time>all[all.length-1].time)all.push(clean);else if(clean.time===all[all.length-1].time)all[all.length-1]=clean}
+     page++;cursor=valid[valid.length-1].time+60;
+     goldFeedEl('goldFeedMessage').textContent='Downloading 2 years of 1-minute candles · '+all.length.toLocaleString()+' bars · page '+page+'…';
+     await new Promise(r=>setTimeout(r,550));
+     if(valid.length<2)break;
+    }
+    if(all.length<1000)throw new Error('Only '+all.length+' historical candles returned. Verify XAU_USD access and OANDA API permissions.');
+    sourceBars=all;loadedFileName='OANDA XAU_USD M1';$('savedStatus').textContent='Saving history…';
+    await saveHistoryLocally(sourceBars,loadedFileName);render();
+   }else{
+    goldFeedEl('goldFeedMessage').textContent='Saved OANDA history found. Starting live updates…';
+   }
+   await goldFeedLiveTick();
+   if(goldFeedTimer)clearInterval(goldFeedTimer);
+   goldFeedTimer=setInterval(goldFeedLiveTick,15000);
+   goldFeedEl('goldFeedStop').disabled=false;
+   goldFeedEl('goldFeedMessage').textContent='Connected. Polling completed candles every 15 seconds; chart data is 1-minute OANDA mid-price.';
+  }catch(err){
+   goldFeedCfg=null;goldFeedEl('goldFeedMessage').textContent='Could not connect/download: '+err.message;
+  }finally{goldFeedEl('goldFeedDownload').disabled=false}
+ }
+ goldFeedEl('goldFeedDownload').addEventListener('click',goldFeedStart);
+ goldFeedEl('goldFeedStop').addEventListener('click',()=>{
+  if(goldFeedTimer)clearInterval(goldFeedTimer);goldFeedTimer=null;goldFeedCfg=null;goldFeedEl('goldFeedStop').disabled=true;goldFeedEl('goldFeedMessage').textContent='Live updates stopped. Saved candles remain on this device.';
+ });
+
  // TradingView-style date jump and custom range calendar.
  const pad2=n=>String(n).padStart(2,'0');
  const isoDate=d=>d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
