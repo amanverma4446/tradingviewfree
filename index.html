@@ -48,7 +48,10 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
 <div id="goldFeedModal" style="display:none;position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.72);align-items:center;justify-content:center;padding:16px">
  <section style="width:min(540px,100%);max-height:90vh;overflow:auto;background:#131722;border:1px solid #3a4050;border-radius:10px;padding:18px">
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px"><b style="font-size:16px">Free XAU/USD data</b><button id="goldFeedClose" style="margin-left:auto">Close ✕</button></div>
-  <p style="color:#9aa4b2;line-height:1.5">Historical candles use Dukascopy's public XAU/USD 1-minute archive. Live spot prices use Gold API's free no-key endpoint. No broker account or API key is needed.</p>
+  <p style="color:#9aa4b2;line-height:1.5">Historical candles use Dukascopy's public XAU/USD 1-minute archive. Live spot prices use Gold API's free no-key endpoint. No broker account or data API key is needed.</p>
+  <label for="goldFeedProxyUrl" style="display:block;color:#9aa4b2;font-size:12px;margin:12px 0 6px">Historical data proxy URL (one-time setup)</label>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><input id="goldFeedProxyUrl" placeholder="https://your-worker.your-subdomain.workers.dev" style="flex:1;min-width:220px;background:#0b0e14;color:#d1d4dc;border:1px solid #3a4050;border-radius:5px;padding:9px"><button id="goldFeedProxySave">Save URL</button></div>
+  <div style="color:#7f8998;font-size:11px;line-height:1.5;margin-top:6px">A free Cloudflare Worker is needed because public browser relays can reject archive requests. Setup file: <code>dukascopy-proxy.js</code> in the project repository.</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0"><button id="goldFeedDownload">Download 1 year of M1 history</button><button id="goldFeedStart" disabled>Start live updates</button><button id="goldFeedStop" disabled>Stop live updates</button></div>
   <div id="goldFeedMessage" style="margin-top:12px;color:#9aa4b2;font-size:12px;line-height:1.6">Download history first. First download can take several minutes.</div>
   <p style="color:#7f8998;font-size:11px;line-height:1.5">Live prices refresh about every 30 seconds and approximate candles from snapshots while this tab stays open; they are not tick-level OHLC. Historical bid prices and live spot prices may differ. Data is saved in this browser.</p>
@@ -392,15 +395,13 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  async function goldFeedFetchDay(day){
   const yy=day.getUTCFullYear(),mm=String(day.getUTCMonth()).padStart(2,'0'),dd=String(day.getUTCDate()).padStart(2,'0');
   const url='https://datafeed.dukascopy.com/datafeed/XAUUSD/'+yy+'/'+mm+'/'+dd+'/BID_candles_min_1.bi5';
-  let res,firstError='';
-  try{res=await fetch(url)}catch(e){firstError=String(e&&e.message||e)}
-  if(!res||!res.ok){
-   // Dukascopy may not send browser CORS headers; try a public CORS relay.
-   const proxy='https://corsproxy.io/?url='+encodeURIComponent(url);
-   try{res=await fetch(proxy)}catch(e){throw Error('Direct archive request blocked by browser CORS and fallback relay failed: '+String(e&&e.message||e)+(firstError?' (direct: '+firstError+')':''))}
-  }
+  const proxyBase=(localStorage.getItem('ftcDukascopyProxyUrl')||'').trim().replace(/\/$/,'');
+  if(!proxyBase)throw Error('One-time setup needed: deploy dukascopy-proxy.js as a Cloudflare Worker, paste its URL above, and click Save URL.');
+  const proxy=proxyBase+'/?url='+encodeURIComponent(url);
+  let res;
+  try{res=await fetch(proxy,{cache:'no-store'})}catch(e){throw Error('Your proxy could not be reached. Check the saved Worker URL and try again.')}
   if(res.status===404||res.status===204)return [];
-  if(!res.ok)throw Error('Historical archive request failed (HTTP '+res.status+').');
+  if(!res.ok)throw Error('Historical proxy request failed (HTTP '+res.status+').');
   const raw=await goldFeedDecode(await res.arrayBuffer()),view=new DataView(raw.buffer,raw.byteOffset,raw.byteLength),start=Date.UTC(yy,day.getUTCMonth(),day.getUTCDate())/1000,rows=[];
   for(let i=0;i+24<=view.byteLength;i+=24){
    const sec=view.getUint32(i,false),o=view.getUint32(i+4,false)/1000,c=view.getUint32(i+8,false)/1000,l=view.getUint32(i+12,false)/1000,h=view.getUint32(i+16,false)/1000,v=view.getFloat32(i+20,false);
@@ -476,6 +477,14 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
   }catch(e){goldFeedEl('goldFeedMessage').textContent='Live update failed: '+e.message+' · will retry.'}
   finally{goldFeedBusy=false}
  }
+ const goldFeedProxyInput=goldFeedEl('goldFeedProxyUrl');
+ goldFeedProxyInput.value=localStorage.getItem('ftcDukascopyProxyUrl')||'';
+ goldFeedEl('goldFeedProxySave').addEventListener('click',()=>{
+  const value=goldFeedProxyInput.value.trim().replace(/\/$/,'');
+  if(value&&!value.startsWith('https://')){goldFeedEl('goldFeedMessage').textContent='Enter the HTTPS Worker base URL only, e.g. https://my-worker.my-name.workers.dev';return}
+  if(value)localStorage.setItem('ftcDukascopyProxyUrl',value);else localStorage.removeItem('ftcDukascopyProxyUrl');
+  goldFeedEl('goldFeedMessage').textContent=value?'Proxy URL saved in this browser. You can download the history now.':'Proxy URL cleared.';
+ });
  goldFeedEl('goldFeedDownload').addEventListener('click',goldFeedDownloadHistory);
  goldFeedEl('goldFeedStart').addEventListener('click',async()=>{if(!sourceBars.length){goldFeedEl('goldFeedMessage').textContent='Download history first.';return}await goldFeedLiveTick();if(goldFeedTimer)clearInterval(goldFeedTimer);goldFeedTimer=setInterval(goldFeedLiveTick,30000);goldFeedEl('goldFeedStart').disabled=true;goldFeedEl('goldFeedStop').disabled=false});
  goldFeedEl('goldFeedStop').addEventListener('click',()=>{if(goldFeedTimer)clearInterval(goldFeedTimer);goldFeedTimer=null;goldFeedEl('goldFeedStart').disabled=false;goldFeedEl('goldFeedStop').disabled=true;goldFeedEl('goldFeedMessage').textContent='Live updates stopped. History remains saved locally.'});
