@@ -392,9 +392,15 @@ button:hover,.filebtn:hover{border-color:#657087}button:disabled{opacity:.45;cur
  async function goldFeedFetchDay(day){
   const yy=day.getUTCFullYear(),mm=String(day.getUTCMonth()).padStart(2,'0'),dd=String(day.getUTCDate()).padStart(2,'0');
   const url='https://datafeed.dukascopy.com/datafeed/XAUUSD/'+yy+'/'+mm+'/'+dd+'/BID_candles_min_1.bi5';
-  const res=await fetch(url);
+  let res,firstError='';
+  try{res=await fetch(url)}catch(e){firstError=String(e&&e.message||e)}
+  if(!res||!res.ok){
+   // Dukascopy may not send browser CORS headers; try a public CORS relay.
+   const proxy='https://corsproxy.io/?url='+encodeURIComponent(url);
+   try{res=await fetch(proxy)}catch(e){throw Error('Direct archive request blocked by browser CORS and fallback relay failed: '+String(e&&e.message||e)+(firstError?' (direct: '+firstError+')':''))}
+  }
   if(res.status===404||res.status===204)return [];
-  if(!res.ok)throw Error('Dukascopy HTTP '+res.status);
+  if(!res.ok)throw Error('Historical archive request failed (HTTP '+res.status+').');
   const raw=await goldFeedDecode(await res.arrayBuffer()),view=new DataView(raw.buffer,raw.byteOffset,raw.byteLength),start=Date.UTC(yy,day.getUTCMonth(),day.getUTCDate())/1000,rows=[];
   for(let i=0;i+24<=view.byteLength;i+=24){
    const sec=view.getUint32(i,false),o=view.getUint32(i+4,false)/1000,c=view.getUint32(i+8,false)/1000,l=view.getUint32(i+12,false)/1000,h=view.getUint32(i+16,false)/1000,v=view.getFloat32(i+20,false);
